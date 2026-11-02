@@ -1,0 +1,223 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Kampf"
+             x:Class="Kampf.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="BgBrush" Color="#0B0D13"/>
+                    <SolidColorBrush x:Key="PanelBrush" Color="#11151D"/>
+                    <SolidColorBrush x:Key="PanelAltBrush" Color="#151A24"/>
+                    <SolidColorBrush x:Key="BorderBrush" Color="#222A38"/>
+                    <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E3749"/>
+                    <SolidColorBrush x:Key="TextBrush" Color="#E4E8F1"/>
+                    <SolidColorBrush x:Key="MutedBrush" Color="#8C94AC"/>
+                    <SolidColorBrush x:Key="FaintBrush" Color="#5A6178"/>
+                    <SolidColorBrush x:Key="AccentBrush" Color="#8FA6FF"/>
+                    <SolidColorBrush x:Key="AccentDarkBrush" Color="#2A3350"/>
+                    <SolidColorBrush x:Key="AccentHoverBrush" Color="#A6B8FF"/>
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="#0B0D13"/>
+                    <SolidColorBrush x:Key="WarnBrush" Color="#FFC66D"/>
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#54C6A3"/>
+                    <SolidColorBrush x:Key="DangerBrush" Color="#E06B8B"/>
+                    <SolidColorBrush x:Key="DangerSoftBrush" Color="#4A2A38"/>
+                    <SolidColorBrush x:Key="HoverBrush" Color="#1B2130"/>
+                    <SolidColorBrush x:Key="SelectedBrush" Color="#1E2637"/>
+                    <SolidColorBrush x:Key="InputBrush" Color="#0F131B"/>
+                    <SolidColorBrush x:Key="CodeBrush" Color="#F0B27A"/>
+                    <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#141821"/>
+                    <SolidColorBrush x:Key="RuleBrush" Color="#262C3A"/>
+                    <SolidColorBrush x:Key="QuoteBorderBrush" Color="#3A4A56"/>
+                    <SolidColorBrush x:Key="GraphCanvasBrush" Color="#0E1118"/>
+                    <SolidColorBrush x:Key="GraphLabelBrush" Color="#D7DCEA"/>
+                    <SolidColorBrush x:Key="GraphMutedBrush" Color="#5A6178"/>
+                    <SolidColorBrush x:Key="GraphEdgeManualBrush" Color="#3D465C"/>
+                    <SolidColorBrush x:Key="GraphEdgeWikiBrush" Color="#4C5876"/>
+                    <SolidColorBrush x:Key="GraphEdgeAcceptedBrush" Color="#A78BFA"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="BgBrush" Color="#F6F7FB"/>
+                    <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="PanelAltBrush" Color="#F0F2F8"/>
+                    <SolidColorBrush x:Key="BorderBrush" Color="#DDE2EC"/>
+                    <SolidColorBrush x:Key="BorderStrongBrush" Color="#C6CEDD"/>
+                    <SolidColorBrush x:Key="TextBrush" Color="#12151C"/>
+                    <SolidColorBrush x:Key="MutedBrush" Color="#5C6478"/>
+                    <SolidColorBrush x:Key="FaintBrush" Color="#8A92A6"/>
+                    <SolidColorBrush x:Key="AccentBrush" Color="#4C63C9"/>
+                    <SolidColorBrush x:Key="AccentDarkBrush" Color="#DDE3FA"/>
+                    <SolidColorBrush x:Key="AccentHoverBrush" Color="#3E55BD"/>
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="WarnBrush" Color="#A96800"/>
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#1F8A6A"/>
+                    <SolidColorBrush x:Key="DangerBrush" Color="#B93B5B"/>
+                    <SolidColorBrush x:Key="DangerSoftBrush" Color="#F0CBD6"/>
+                    <SolidColorBrush x:Key="HoverBrush" Color="#EEF1F8"/>
+                    <SolidColorBrush x:Key="SelectedBrush" Color="#E3E8F5"/>
+                    <SolidColorBrush x:Key="InputBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="CodeBrush" Color="#A14A00"/>
+                    <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#F3F4F8"/>
+                    <SolidColorBrush x:Key="RuleBrush" Color="#E2E6EF"/>
+                    <SolidColorBrush x:Key="QuoteBorderBrush" Color="#C3CBD9"/>
+                    <SolidColorBrush x:Key="GraphCanvasBrush" Color="#FBFBFD"/>
+                    <SolidColorBrush x:Key="GraphLabelBrush" Color="#2A3040"/>
+                    <SolidColorBrush x:Key="GraphMutedBrush" Color="#8A92A6"/>
+                    <SolidColorBrush x:Key="GraphEdgeManualBrush" Color="#B9C1D0"/>
+                    <SolidColorBrush x:Key="GraphEdgeWikiBrush" Color="#9AA5BC"/>
+                    <SolidColorBrush x:Key="GraphEdgeAcceptedBrush" Color="#7A5BD0"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{DynamicResource BgBrush}"/>
+            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+        </Style>
+
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <Style Selector="TextBlock.section">
+            <Setter Property="Foreground" Value="{DynamicResource FaintBrush}"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LetterSpacing" Value="1.2"/>
+        </Style>
+
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        </Style>
+
+        <Style Selector="TextBlock.meta">
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Background" Value="{DynamicResource PanelAltBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}"/>
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+        </Style>
+
+        <Style Selector="Button.ghost">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="Padding" Value="8,5"/>
+        </Style>
+
+        <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <Style Selector="Button.link">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="11.5"/>
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource DangerSoftBrush}"/>
+        </Style>
+
+        <Style Selector="Button.nav">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="Padding" Value="12,6"/>
+        </Style>
+
+        <Style Selector="Button.nav.active">
+            <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentDarkBrush}"/>
+        </Style>
+
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinHeight" Value="28"/>
+        </Style>
+
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+        </Style>
+
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SelectedBrush}"/>
+        </Style>
+
+        <Style Selector="ScrollViewer">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <Style Selector="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+        </Style>
+    </Application.Styles>
+</Application>

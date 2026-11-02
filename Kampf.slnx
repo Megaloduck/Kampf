@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="Kampf.Domain/Kampf.Domain.csproj" />
+    <Project Path="Kampf.Application/Kampf.Application.csproj" />
+    <Project Path="Kampf.Infrastructure/Kampf.Infrastructure.csproj" />
+    <Project Path="Kampf/Kampf.csproj" />
+  </Folder>
+  <Folder Name="/hosts/">
+    <Project Path="Kampf.Desktop/Kampf.Desktop.csproj" />
+    <Project Path="Kampf.Android/Kampf.Android.csproj" />
+    <Project Path="Kampf.iOS/Kampf.iOS.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kampf.Domain.Tests/Kampf.Domain.Tests.csproj" />
+    <Project Path="tests/Kampf.Application.Tests/Kampf.Application.Tests.csproj" />
+    <Project Path="tests/Kampf.Infrastructure.Tests/Kampf.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,71 @@
+using Kampf.Application.Abstractions;
+using Kampf.Application.Models;
+using Kampf.Domain.Entities;
+
+namespace Kampf.Application.Services;
+
+public sealed record ImportResult(PdfDocument Document, PdfExtraction Extraction);
+
+/// <summary>
+/// Import a PDF: copy it into the vault, extract text + citation metadata, and
+/// persist the document node. Enrichment suggestions are Phase 2; capture is
+/// facts only.
+/// </summary>
+public sealed class ImportService
+{
+    private readonly IVaultRepository _repo;
+    private readonly IPdfExtractor _extractor;
+    private readonly IVaultFileStore _files;
+
+    public ImportService(IVaultRepository repo, IPdfExtractor extractor, IVaultFileStore files)
+    {
+        _repo = repo;
+        _extractor = extractor;
+        _files = files;
+    }
+
+    public async Task<ImportResult> ImportAsync(string filePath, CancellationToken ct = default)
+    {
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException("PDF not found.", filePath);
+
+        var storedPath = await _files.StoreDocumentAsync(filePath, ct);
+        var extraction = await _extractor.ExtractAsync(storedPath, ct);
+        var citation = CitationService.FromExtraction(extraction);
+
+        var document = PdfDocument.Create(storedPath, citation.Title, extraction.PageCount);
+        document.Authors = citation.Authors;
+        document.Year = citation.Year;
+        document.Doi = citation.Doi
+                       ?? CitationService.FindDoi(string.Concat(extraction.Pages.Take(2).Select(p => p.Text)));
+
+        await _repo.SaveDocumentAsync(document, ct);
+        await _repo.AppendAuditAsync(
+            AuditEntry.Create("document.imported", $"{document.Title} ({document.PageCount} pages)"),
+            ct);
+
+        return new ImportResult(document, extraction);
+    }
+
+    /// <summary>
+    /// Removes an imported paper from the vault: its database row, highlights,
+    /// graph edges and the stored PDF. Refuses while notes still carry a page
+    /// anchor into it, so provenance never points at a file that is gone.
+    /// </summary>
+    public async Task DeleteDocumentAsync(PdfDocument document, CancellationToken ct = default)
+    {
+        var anchored = await _repo.ListNotesForDocumentAsync(document.Id, ct);
+        if (anchored.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"{anchored.Count} note(s) were captured from this paper. Delete those notes first, " +
+                "so their page anchors still point at a real source.");
+        }
+
+        await _repo.DeleteDocumentAsync(document.Id, ct);
+        await _files.DeleteAsync(document.FilePath, ct);
+        await _repo.AppendAuditAsync(
+            AuditEntry.Create("document.deleted", $"{document.Title} ({document.FileName})"),
+            ct);
+    }
+}

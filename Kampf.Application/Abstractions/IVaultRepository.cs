@@ -1,0 +1,57 @@
+using Kampf.Domain.Entities;
+using Kampf.Domain.ValueObjects;
+using Kampf.Application.Models;
+
+namespace Kampf.Application.Abstractions;
+
+/// <summary>
+/// Persistence boundary for the vault. The application layer never talks to
+/// SQLite directly; infrastructure implements this port.
+/// </summary>
+public interface IVaultRepository
+{
+    Task InitializeAsync(CancellationToken ct = default);
+
+    // Notes
+    Task<IReadOnlyList<Note>> ListNotesAsync(CancellationToken ct = default);
+    Task<Note?> GetNoteAsync(string id, CancellationToken ct = default);
+    Task SaveNoteAsync(Note note, CancellationToken ct = default);
+    Task DeleteNoteAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<Note>> ListNotesForDocumentAsync(string documentId, CancellationToken ct = default);
+
+    // Tags
+    Task<IReadOnlyList<Tag>> ListTagsAsync(CancellationToken ct = default);
+    Task<Tag> EnsureTagAsync(string name, CancellationToken ct = default);
+    Task SetNoteTagsAsync(string noteId, IEnumerable<string> tagIds, CancellationToken ct = default);
+
+    // Links / graph edges
+    Task<IReadOnlyList<Link>> ListLinksAsync(CancellationToken ct = default);
+    Task AddLinkAsync(Link link, CancellationToken ct = default);
+    Task DeleteLinkAsync(string linkId, CancellationToken ct = default);
+
+    /// <summary>Replaces the wiki-derived outgoing edges of a note (idempotent).</summary>
+    Task ReplaceWikiLinksAsync(string sourceNoteId, IEnumerable<string> targetNoteIds, CancellationToken ct = default);
+
+    // Documents
+    Task<IReadOnlyList<PdfDocument>> ListDocumentsAsync(CancellationToken ct = default);
+    Task<PdfDocument?> GetDocumentAsync(string id, CancellationToken ct = default);
+    Task SaveDocumentAsync(PdfDocument document, CancellationToken ct = default);
+
+    /// <summary>Removes a document together with its highlights and graph edges.</summary>
+    Task DeleteDocumentAsync(string id, CancellationToken ct = default);
+
+    // Highlights
+    Task<IReadOnlyList<Highlight>> ListHighlightsAsync(string documentId, CancellationToken ct = default);
+    Task SaveHighlightAsync(Highlight highlight, CancellationToken ct = default);
+
+    // Suggestions / review queue
+    Task<IReadOnlyList<Suggestion>> ListSuggestionsAsync(SuggestionStatus? status = null, CancellationToken ct = default);
+    Task SaveSuggestionAsync(Suggestion suggestion, CancellationToken ct = default);
+
+    // Audit trail
+    Task<IReadOnlyList<AuditEntry>> ListAuditAsync(int limit = 100, CancellationToken ct = default);
+    Task AppendAuditAsync(AuditEntry entry, CancellationToken ct = default);
+
+    // Full-text search
+    Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int limit = 50, CancellationToken ct = default);
+}

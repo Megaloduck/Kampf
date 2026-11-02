@@ -1,0 +1,560 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="880"
+             x:Class="Kampf.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{DynamicResource BgBrush}">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="NoteRowTemplate" x:DataType="vm:NoteRowViewModel">
+            <StackPanel Spacing="3">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Title}"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding UpdatedLabel}"
+                               Classes="meta"
+                               FontSize="10.5"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"/>
+                </Grid>
+                <TextBlock Text="{Binding Preview}"
+                           Classes="muted"
+                           FontSize="11.5"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding TagLine}"
+                               Foreground="{DynamicResource AccentBrush}"
+                               FontSize="10.5"
+                               IsVisible="{Binding HasTags}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding ProvenanceLabel, StringFormat='\u2937 {0}'}"
+                               Foreground="{DynamicResource SuccessBrush}"
+                               FontSize="10.5"
+                               IsVisible="{Binding HasProvenance}"/>
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DocumentRowTemplate" x:DataType="vm:DocumentRowViewModel">
+            <StackPanel Spacing="3">
+                <TextBlock Text="{Binding Title}"
+                           FontWeight="SemiBold"
+                           FontSize="12.5"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding CitationLine}"
+                           Classes="muted"
+                           FontSize="11"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding MetaLine}"
+                           Foreground="{DynamicResource FaintBrush}"
+                           FontSize="10.5"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,*" ColumnDefinitions="286,*,326">
+
+        <!-- ============================================================ header -->
+        <Border Grid.Row="0" Grid.ColumnSpan="3"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock Text="KAMPF"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               LetterSpacing="3"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <Border Background="{DynamicResource PanelAltBrush}"
+                            CornerRadius="4"
+                            Padding="7,2"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="LOCAL VAULT" FontSize="9.5" LetterSpacing="1"
+                                   Foreground="{DynamicResource FaintBrush}"/>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding CountsSummary}"
+                           Classes="meta"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Content="{Binding ThemeButtonLabel}"
+                            Classes="ghost"
+                            Command="{Binding ToggleThemeCommand}"
+                            ToolTip.Tip="Switch between dark and light theme"/>
+                    <Button Content="New note" Classes="ghost" Command="{Binding NewNoteCommand}"/>
+                    <Button Content="Import PDF" Classes="primary" Command="{Binding ImportPdfCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- =========================================================== sidebar -->
+        <Border Grid.Row="1" Grid.Column="0"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto,2*,Auto,*,Auto">
+                <TextBox Grid.Row="0"
+                         Margin="12,12,12,8"
+                         Text="{Binding SearchQuery, Mode=TwoWay}"
+                         Watermark="Search text or tag:name"
+                         KeyDown="OnSearchKeyDown"/>
+
+                <TextBlock Grid.Row="1"
+                           Text="{Binding ListHeader}"
+                           Classes="section"
+                           Margin="16,4,14,6"/>
+
+                <ListBox Grid.Row="2"
+                         ItemsSource="{Binding Notes}"
+                         SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                         ItemTemplate="{StaticResource NoteRowTemplate}"
+                         Margin="6,0"/>
+
+                <TextBlock Grid.Row="3"
+                           Text="PAPERS"
+                           Classes="section"
+                           Margin="16,12,14,6"/>
+
+                <ListBox Grid.Row="4"
+                         ItemsSource="{Binding Documents}"
+                         SelectedItem="{Binding SelectedDocument, Mode=TwoWay}"
+                         ItemTemplate="{StaticResource DocumentRowTemplate}"
+                         Margin="6,0"/>
+
+                <TextBlock Grid.Row="5"
+                           Text="{Binding CountsSummary}"
+                           Classes="meta"
+                           FontSize="10.5"
+                           Margin="16,10"
+                           TextWrapping="Wrap"/>
+            </Grid>
+        </Border>
+
+        <!-- ============================================================== main -->
+        <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*,Auto">
+
+            <Border Grid.Row="0"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="14,8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Content="Graph"
+                                Classes="nav"
+                                Classes.active="{Binding IsGraphView}"
+                                Command="{Binding ShowGraphCommand}"/>
+                        <Button Content="Note"
+                                Classes="nav"
+                                Classes.active="{Binding IsEditorView}"
+                                Command="{Binding ShowEditorCommand}"/>
+                        <Button Content="Reader"
+                                Classes="nav"
+                                Classes.active="{Binding IsReaderView}"
+                                Command="{Binding ShowReaderCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding GraphSummary}"
+                               Classes="meta"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding IsGraphView}"/>
+
+                    <TextBlock Grid.Column="2"
+                               Text="Working…"
+                               Classes="meta"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding IsBusy}"/>
+                </Grid>
+            </Border>
+
+            <!-- graph -->
+            <Grid Grid.Row="1" IsVisible="{Binding IsGraphView}" RowDefinitions="Auto,*">
+                <Border Grid.Row="0"
+                        Padding="16,10"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ComboBox Width="136"
+                                  ItemsSource="{Binding SourceFilters}"
+                                  SelectedItem="{Binding SourceFilter, Mode=TwoWay}"/>
+                        <ComboBox Width="150"
+                                  ItemsSource="{Binding TagFilters}"
+                                  SelectedItem="{Binding TagFilter, Mode=TwoWay}"/>
+                        <TextBlock Text="Click to inspect · double-click to open · drag to arrange · scroll to zoom"
+                                   Classes="meta"
+                                   VerticalAlignment="Center"
+                                   Margin="4,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <controls:GraphControl Grid.Row="1"
+                                       x:Name="GraphView"
+                                       GraphSource="{Binding Graph}"
+                                       SelectedNodeId="{Binding SelectedNodeId}"/>
+            </Grid>
+
+            <!-- editor -->
+            <Grid Grid.Row="1" IsVisible="{Binding IsEditorView}" RowDefinitions="Auto,Auto,*,Auto">
+
+                <Border Grid.Row="0"
+                        Padding="20,14,20,10"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox Text="{Binding EditorTitle, Mode=TwoWay}"
+                                     FontSize="20"
+                                     FontWeight="SemiBold"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="0"
+                                     Watermark="Note title"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="● unsaved"
+                                       Foreground="{DynamicResource WarnBrush}"
+                                       FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0"
+                                       IsVisible="{Binding IsDirty}"/>
+                            <Button Grid.Column="2"
+                                    Content="Save"
+                                    Classes="primary"
+                                    Command="{Binding SaveNoteCommand}"
+                                    IsEnabled="{Binding HasActiveNote}"/>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="{Binding ProvenanceText}"
+                                           Classes="meta"
+                                           VerticalAlignment="Center"/>
+                                <Button Content="Open source"
+                                        Classes="link"
+                                        Command="{Binding OpenSourceCommand}"
+                                        IsVisible="{Binding CanOpenSource}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding EditorMeta}"
+                                       Classes="meta"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Padding="20,8" IsVisible="{Binding HasActiveNote}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="TAGS" Classes="section" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding EditorTags, Mode=TwoWay}"
+                                 Watermark="methods, graph-theory (comma separated)"
+                                 Width="380"
+                                 FontSize="11.5"/>
+                        <TextBlock Text="{Binding BacklinksText}"
+                                   Classes="meta"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="20,8,20,12">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding EditorBody, Mode=TwoWay}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             FontFamily="Consolas, Menlo, monospace"
+                             FontSize="13"
+                             LineHeight="21"
+                             VerticalContentAlignment="Top"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Padding="14"
+                             Watermark="Write markdown. Use [[Another Note]] to connect ideas."/>
+
+                    <Border Grid.Column="1"
+                            Margin="14,0,0,0"
+                            Background="{DynamicResource PanelBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="18,14">
+                        <ScrollViewer>
+                            <ContentControl x:Name="PreviewHost"/>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="2"
+                        IsVisible="{Binding !HasActiveNote}"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Text="No note selected"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Pick a note on the left or create a new one."
+                                   Classes="muted"
+                                   HorizontalAlignment="Center"/>
+                        <Button Content="Create note"
+                                Classes="primary"
+                                HorizontalAlignment="Center"
+                                Command="{Binding NewNoteCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="3"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="20,8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="11.5"
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                            <Button Content="Delete note"
+                                    Classes="ghost danger"
+                                    Command="{Binding DeleteNoteCommand}"
+                                    IsVisible="{Binding HasActiveNote}"/>
+                            <TextBlock Text="Click twice to confirm"
+                                       Classes="meta"
+                                       FontSize="10.5"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding ConfirmDelete}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- reader -->
+            <Grid Grid.Row="1" IsVisible="{Binding IsReaderView}" RowDefinitions="Auto,*,Auto">
+                <Border Grid.Row="0"
+                        Padding="20,14"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding ReaderTitle}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding ReaderCitation}"
+                                       Classes="meta"/>
+                            <TextBlock Text="{Binding ReaderMeta}"
+                                       Classes="meta"
+                                       FontSize="10.5"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="Click twice to confirm"
+                                       Classes="meta"
+                                       FontSize="10.5"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding ConfirmDeleteDocument}"/>
+                            <Button Content="Delete paper"
+                                    Classes="ghost danger"
+                                    Command="{Binding DeleteDocumentCommand}"
+                                    IsEnabled="{Binding HasSelectedDocument}"
+                                    ToolTip.Tip="Remove this paper, its highlights and the stored PDF"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" ColumnDefinitions="2*,*" Margin="16,12">
+                    <ScrollViewer Grid.Column="0">
+                        <ItemsControl ItemsSource="{Binding Pages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PageViewModel">
+                                    <Border Background="{DynamicResource PanelBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="16,12"
+                                            Margin="0,0,10,10">
+                                        <StackPanel Spacing="8">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding HeaderLabel}"
+                                                           Classes="section"
+                                                           VerticalAlignment="Center"/>
+                                                <Button Grid.Column="1"
+                                                        Content="Capture selection → note"
+                                                        Classes="ghost"
+                                                        FontSize="11"
+                                                        Click="OnCapturePageClick"/>
+                                            </Grid>
+                                            <SelectableTextBlock Text="{Binding Text}"
+                                                                 TextWrapping="Wrap"
+                                                                 FontSize="13"
+                                                                 LineHeight="20"
+                                                                 Foreground="{DynamicResource TextBrush}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource PanelBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="14">
+                        <Grid RowDefinitions="Auto,*">
+                            <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,8">
+                                <TextBlock Text="ANCHORED NOTES" Classes="section"/>
+                                <TextBlock Text="Every note here keeps the page it came from."
+                                           Classes="meta"
+                                           FontSize="10.5"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ListBox Grid.Row="1"
+                                     ItemsSource="{Binding AnchoredNotes}"
+                                     SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                                     ItemTemplate="{StaticResource NoteRowTemplate}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="2"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="20,8">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="11.5"
+                               Foreground="{DynamicResource MutedBrush}"
+                               TextTrimming="CharacterEllipsis"/>
+                </Border>
+            </Grid>
+
+            <TextBlock Grid.Row="2"
+                       Text="{Binding VaultPath}"
+                       Classes="meta"
+                       FontSize="10"
+                       Margin="18,0,18,10"
+                       IsVisible="{Binding IsGraphView}"/>
+        </Grid>
+
+        <!-- ====================================================== right panel -->
+        <Border Grid.Row="1" Grid.Column="2"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Row="0" Margin="14,14,14,10" Spacing="5">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="REVIEW QUEUE" Classes="section" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource AccentDarkBrush}"
+                                CornerRadius="9"
+                                Padding="7,1"
+                                MinWidth="20">
+                            <TextBlock Text="{Binding PendingCount}"
+                                       FontSize="10.5"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource AccentBrush}"/>
+                        </Border>
+                    </Grid>
+                    <TextBlock Text="Suggestions wait here. Nothing touches your graph until you accept it."
+                               Classes="meta"
+                               FontSize="10.5"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding Suggestions}" Margin="12,0,12,8">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SuggestionRowViewModel">
+                                <Border Background="{DynamicResource PanelAltBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="11,10"
+                                        Margin="0,0,0,8">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding KindLabel}"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       FontSize="9.5"
+                                                       LetterSpacing="1"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding AgeLabel}"
+                                                       Classes="meta"
+                                                       FontSize="10"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Button Content="Accept"
+                                                    Classes="primary"
+                                                    FontSize="11"
+                                                    Padding="10,3"
+                                                    Command="{Binding AcceptCommand}"/>
+                                            <Button Content="Reject"
+                                                    Classes="ghost"
+                                                    FontSize="11"
+                                                    Padding="10,3"
+                                                    Command="{Binding RejectCommand}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Grid.Row="2"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="14,10"
+                        MaxHeight="220">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Text="ACTIVITY" Classes="section" Margin="0,0,0,6"/>
+                        <ScrollViewer Grid.Row="1">
+                            <ItemsControl ItemsSource="{Binding Activity}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AuditRowViewModel">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                            <TextBlock Text="{Binding Action}"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource SuccessBrush}"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Detail}"
+                                                       FontSize="10.5"
+                                                       Classes="muted"
+                                                       Margin="6,0"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding TimeLabel}"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource FaintBrush}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
