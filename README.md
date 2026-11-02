@@ -90,3 +90,13 @@ only needs to produce suggestions.
 - Visual PDF page rendering (WebView + PDF.js) — Phase 1 shows extracted page text
   with selectable ranges for highlight-to-note.
 - Vector search, embeddings, AI drafting, sync, publishing — Phase 2+.
+
+## Icons
+
+UI icons use **Material Symbols Rounded**, bundled as a variable font at
+`Kampf/Assets/Fonts/MaterialSymbolsRounded.ttf` (Apache-2.0, © Google).
+`Kampf/Controls/Symbols.cs` is the single glyph map: each constant is the icon's
+upstream name and codepoint, so adding an icon is one line plus the name.
+Codepoints are looked up in the checked-in `MaterialSymbolsRounded.codepoints`
+next to the font. Glyphs are rendered with the `TextBlock.icon` style, sized per
+context and paired with a tooltip whenever the button is icon-only.

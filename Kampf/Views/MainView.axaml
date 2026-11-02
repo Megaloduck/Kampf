@@ -92,12 +92,41 @@
                            VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Content="{Binding ThemeButtonLabel}"
-                            Classes="ghost"
+                    <Button Classes="ghost iconButton"
                             Command="{Binding ToggleThemeCommand}"
-                            ToolTip.Tip="Switch between dark and light theme"/>
-                    <Button Content="New note" Classes="ghost" Command="{Binding NewNoteCommand}"/>
-                    <Button Content="Import PDF" Classes="primary" Command="{Binding ImportPdfCommand}"/>
+                            ToolTip.Tip="{Binding ThemeButtonLabel}">
+                        <Panel>
+                            <TextBlock Classes="icon"
+                                       FontSize="19"
+                                       Text="{x:Static controls:Symbols.LightMode}"
+                                       IsVisible="{Binding IsDarkTheme}"/>
+                            <TextBlock Classes="icon"
+                                       FontSize="19"
+                                       Text="{x:Static controls:Symbols.DarkMode}"
+                                       IsVisible="{Binding !IsDarkTheme}"/>
+                        </Panel>
+                    </Button>
+                    <Button Classes="ghost"
+                            Command="{Binding NewNoteCommand}"
+                            ToolTip.Tip="Create a new note">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon"
+                                       FontSize="17"
+                                       Text="{x:Static controls:Symbols.NoteAdd}"/>
+                            <TextBlock Text="New note"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="primary"
+                            Command="{Binding ImportPdfCommand}"
+                            ToolTip.Tip="Import a PDF into the vault">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon"
+                                       FontSize="17"
+                                       Text="{x:Static controls:Symbols.UploadFile}"
+                                       Foreground="{DynamicResource OnAccentBrush}"/>
+                            <TextBlock Text="Import PDF"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -110,9 +139,18 @@
             <Grid RowDefinitions="Auto,Auto,2*,Auto,*,Auto">
                 <TextBox Grid.Row="0"
                          Margin="12,12,12,8"
+                         Padding="32,6,9,6"
                          Text="{Binding SearchQuery, Mode=TwoWay}"
                          Watermark="Search text or tag:name"
-                         KeyDown="OnSearchKeyDown"/>
+                         KeyDown="OnSearchKeyDown">
+                    <TextBox.InnerLeftContent>
+                        <TextBlock Classes="icon"
+                                   FontSize="15"
+                                   Margin="10,0,0,0"
+                                   Text="{x:Static controls:Symbols.Search}"
+                                   Foreground="{DynamicResource FaintBrush}"/>
+                    </TextBox.InnerLeftContent>
+                </TextBox>
 
                 <TextBlock Grid.Row="1"
                            Text="{Binding ListHeader}"
@@ -154,18 +192,39 @@
                     Padding="14,8">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="Graph"
-                                Classes="nav"
+                        <Button Classes="nav"
                                 Classes.active="{Binding IsGraphView}"
-                                Command="{Binding ShowGraphCommand}"/>
-                        <Button Content="Note"
-                                Classes="nav"
+                                Command="{Binding ShowGraphCommand}"
+                                ToolTip.Tip="Graph view">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.Hub}"/>
+                                <TextBlock Text="Graph"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="nav"
                                 Classes.active="{Binding IsEditorView}"
-                                Command="{Binding ShowEditorCommand}"/>
-                        <Button Content="Reader"
-                                Classes="nav"
+                                Command="{Binding ShowEditorCommand}"
+                                ToolTip.Tip="Note editor">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.EditNote}"/>
+                                <TextBlock Text="Note"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="nav"
                                 Classes.active="{Binding IsReaderView}"
-                                Command="{Binding ShowReaderCommand}"/>
+                                Command="{Binding ShowReaderCommand}"
+                                ToolTip.Tip="Paper reader">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.MenuBook}"/>
+                                <TextBlock Text="Reader"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <TextBlock Grid.Column="1"
@@ -233,10 +292,18 @@
                                        Margin="10,0"
                                        IsVisible="{Binding IsDirty}"/>
                             <Button Grid.Column="2"
-                                    Content="Save"
                                     Classes="primary"
                                     Command="{Binding SaveNoteCommand}"
-                                    IsEnabled="{Binding HasActiveNote}"/>
+                                    IsEnabled="{Binding HasActiveNote}"
+                                    ToolTip.Tip="Save note">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="icon"
+                                               FontSize="16"
+                                               Text="{x:Static controls:Symbols.Save}"
+                                               Foreground="{DynamicResource OnAccentBrush}"/>
+                                    <TextBlock Text="Save"/>
+                                </StackPanel>
+                            </Button>
                         </Grid>
 
                         <Grid ColumnDefinitions="*,Auto">
@@ -244,10 +311,18 @@
                                 <TextBlock Text="{Binding ProvenanceText}"
                                            Classes="meta"
                                            VerticalAlignment="Center"/>
-                                <Button Content="Open source"
-                                        Classes="link"
+                                <Button Classes="link"
                                         Command="{Binding OpenSourceCommand}"
-                                        IsVisible="{Binding CanOpenSource}"/>
+                                        IsVisible="{Binding CanOpenSource}"
+                                        ToolTip.Tip="Open the source paper">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Open source"/>
+                                        <TextBlock Classes="icon"
+                                                   FontSize="13"
+                                                   Text="{x:Static controls:Symbols.OpenInNew}"
+                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                             <TextBlock Grid.Column="1"
                                        Text="{Binding EditorMeta}"
@@ -301,16 +376,28 @@
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center">
                     <StackPanel Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Classes="icon"
+                                   FontSize="40"
+                                   HorizontalAlignment="Center"
+                                   Text="{x:Static controls:Symbols.Notes}"
+                                   Foreground="{DynamicResource FaintBrush}"/>
                         <TextBlock Text="No note selected"
                                    FontSize="16"
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="Pick a note on the left or create a new one."
                                    Classes="muted"
                                    HorizontalAlignment="Center"/>
-                        <Button Content="Create note"
-                                Classes="primary"
+                        <Button Classes="primary"
                                 HorizontalAlignment="Center"
-                                Command="{Binding NewNoteCommand}"/>
+                                Command="{Binding NewNoteCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.NoteAdd}"
+                                           Foreground="{DynamicResource OnAccentBrush}"/>
+                                <TextBlock Text="Create note"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
 
@@ -325,10 +412,18 @@
                                    TextTrimming="CharacterEllipsis"
                                    VerticalAlignment="Center"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                            <Button Content="Delete note"
-                                    Classes="ghost danger"
+                            <Button Classes="ghost danger"
                                     Command="{Binding DeleteNoteCommand}"
-                                    IsVisible="{Binding HasActiveNote}"/>
+                                    IsVisible="{Binding HasActiveNote}"
+                                    ToolTip.Tip="Delete this note">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="icon"
+                                               FontSize="16"
+                                               Text="{x:Static controls:Symbols.Delete}"
+                                               Foreground="{DynamicResource DangerBrush}"/>
+                                    <TextBlock Text="Delete note"/>
+                                </StackPanel>
+                            </Button>
                             <TextBlock Text="Click twice to confirm"
                                        Classes="meta"
                                        FontSize="10.5"
@@ -367,11 +462,18 @@
                                        FontSize="10.5"
                                        VerticalAlignment="Center"
                                        IsVisible="{Binding ConfirmDeleteDocument}"/>
-                            <Button Content="Delete paper"
-                                    Classes="ghost danger"
+                            <Button Classes="ghost danger"
                                     Command="{Binding DeleteDocumentCommand}"
                                     IsEnabled="{Binding HasSelectedDocument}"
-                                    ToolTip.Tip="Remove this paper, its highlights and the stored PDF"/>
+                                    ToolTip.Tip="Remove this paper, its highlights and the stored PDF">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="icon"
+                                               FontSize="16"
+                                               Text="{x:Static controls:Symbols.Delete}"
+                                               Foreground="{DynamicResource DangerBrush}"/>
+                                    <TextBlock Text="Delete paper"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -393,10 +495,17 @@
                                                            Classes="section"
                                                            VerticalAlignment="Center"/>
                                                 <Button Grid.Column="1"
-                                                        Content="Capture selection → note"
                                                         Classes="ghost"
                                                         FontSize="11"
-                                                        Click="OnCapturePageClick"/>
+                                                        Click="OnCapturePageClick"
+                                                        ToolTip.Tip="Turn the selected text into an anchored note">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <TextBlock Classes="icon"
+                                                                   FontSize="14"
+                                                                   Text="{x:Static controls:Symbols.FormatQuote}"/>
+                                                        <TextBlock Text="Capture selection → note"/>
+                                                    </StackPanel>
+                                                </Button>
                                             </Grid>
                                             <SelectableTextBlock Text="{Binding Text}"
                                                                  TextWrapping="Wrap"
@@ -504,16 +613,31 @@
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Button Content="Accept"
-                                                    Classes="primary"
+                                            <Button Classes="primary"
                                                     FontSize="11"
                                                     Padding="10,3"
-                                                    Command="{Binding AcceptCommand}"/>
-                                            <Button Content="Reject"
-                                                    Classes="ghost"
+                                                    Command="{Binding AcceptCommand}"
+                                                    ToolTip.Tip="Accept this suggestion into the graph">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Classes="icon"
+                                                               FontSize="14"
+                                                               Text="{x:Static controls:Symbols.Check}"
+                                                               Foreground="{DynamicResource OnAccentBrush}"/>
+                                                    <TextBlock Text="Accept"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="ghost"
                                                     FontSize="11"
                                                     Padding="10,3"
-                                                    Command="{Binding RejectCommand}"/>
+                                                    Command="{Binding RejectCommand}"
+                                                    ToolTip.Tip="Reject this suggestion">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Classes="icon"
+                                                               FontSize="14"
+                                                               Text="{x:Static controls:Symbols.Close}"/>
+                                                    <TextBlock Text="Reject"/>
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>

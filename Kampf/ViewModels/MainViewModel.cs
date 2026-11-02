@@ -86,7 +86,7 @@ public partial class MainViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(ThemeButtonLabel))]
     private bool _isDarkTheme = true;
 
-    public string ThemeButtonLabel => IsDarkTheme ? "Light theme" : "Dark theme";
+    public string ThemeButtonLabel => IsDarkTheme ? "Switch to light theme" : "Switch to dark theme";
 
     partial void OnIsDarkThemeChanged(bool value)
     {
