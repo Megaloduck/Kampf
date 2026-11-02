@@ -14,4 +14,11 @@ public sealed class PageViewModel
     public string Text { get; }
 
     public string HeaderLabel => $"Page {Number}";
+
+    /// <summary>
+    /// The last text the reader selected on this page. Kept because
+    /// SelectableTextBlock clears its own selection as soon as the capture
+    /// button takes focus.
+    /// </summary>
+    public string SelectedText { get; set; } = string.Empty;
 }

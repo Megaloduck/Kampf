@@ -10,7 +10,17 @@ public sealed record PdfExtraction(
     int? Year,
     string? Doi,
     int PageCount,
-    IReadOnlyList<PdfPageText> Pages)
+    IReadOnlyList<PdfPageText> Pages,
+    string? Abstract = null,
+    string? Publication = null,
+    string? Volume = null,
+    string? Issue = null,
+    string? PageRange = null,
+    string? Issn = null,
+    string? Url = null,
+    string? Keywords = null,
+    string? ItemType = null,
+    string? Language = null)
 {
     public string FullText => string.Concat(Pages.Select(p => p.Text + "\n"));
 }

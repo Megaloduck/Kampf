@@ -9,6 +9,16 @@
              x:DataType="vm:MainViewModel"
              Background="{DynamicResource BgBrush}">
 
+    <UserControl.Styles>
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="SizeWestEast"/>
+        </Style>
+        <Style Selector="GridSplitter:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
     <UserControl.Resources>
         <DataTemplate x:Key="NoteRowTemplate" x:DataType="vm:NoteRowViewModel">
             <StackPanel Spacing="3">
@@ -61,10 +71,18 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid RowDefinitions="Auto,*" ColumnDefinitions="286,*,326">
+    <Grid x:Name="RootLayout" RowDefinitions="Auto,*">
+        <!-- 0 sidebar | 1 splitter | 2 workspace | 3 splitter | 4 review queue -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="286"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition Width="*" MinWidth="320"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition Width="326"/>
+        </Grid.ColumnDefinitions>
 
         <!-- ============================================================ header -->
-        <Border Grid.Row="0" Grid.ColumnSpan="3"
+        <Border Grid.Row="0" Grid.ColumnSpan="5"
                 Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
@@ -83,6 +101,15 @@
                         <TextBlock Text="LOCAL VAULT" FontSize="9.5" LetterSpacing="1"
                                    Foreground="{DynamicResource FaintBrush}"/>
                     </Border>
+                    <Button x:Name="SidebarToggleButton"
+                            Classes="ghost iconButton"
+                            Click="OnToggleSidebarClick"
+                            ToolTip.Tip="Hide the note list">
+                        <TextBlock x:Name="SidebarToggleIcon"
+                                   Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.LeftPanelClose}"/>
+                    </Button>
                 </StackPanel>
 
                 <TextBlock Grid.Column="1"
@@ -92,6 +119,24 @@
                            VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <Button x:Name="UndoButton"
+                                Classes="ghost iconButton"
+                                Click="OnUndoClick"
+                                ToolTip.Tip="Undo (Ctrl+Z)">
+                            <TextBlock Classes="icon"
+                                       FontSize="18"
+                                       Text="{x:Static controls:Symbols.Undo}"/>
+                        </Button>
+                        <Button x:Name="RedoButton"
+                                Classes="ghost iconButton"
+                                Click="OnRedoClick"
+                                ToolTip.Tip="Redo (Ctrl+Y)">
+                            <TextBlock Classes="icon"
+                                       FontSize="18"
+                                       Text="{x:Static controls:Symbols.Redo}"/>
+                        </Button>
+                    </StackPanel>
                     <Button Classes="ghost iconButton"
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip.Tip="{Binding ThemeButtonLabel}">
@@ -127,12 +172,27 @@
                             <TextBlock Text="Import PDF"/>
                         </StackPanel>
                     </Button>
+                    <Border Width="1"
+                            Height="20"
+                            Margin="2,0"
+                            Background="{DynamicResource BorderBrush}"/>
+                    <Button x:Name="ReviewToggleButton"
+                            Classes="ghost iconButton"
+                            Click="OnToggleReviewClick"
+                            ToolTip.Tip="Hide the review queue">
+                        <TextBlock x:Name="ReviewToggleIcon"
+                                   Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.RightPanelClose}"/>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- =========================================================== sidebar -->
         <Border Grid.Row="1" Grid.Column="0"
+                x:Name="SidebarPanel"
+                MinWidth="220"
                 Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,1,0">
@@ -183,8 +243,13 @@
             </Grid>
         </Border>
 
+        <GridSplitter Grid.Row="1" Grid.Column="1"
+                      x:Name="SidebarSplitter"
+                      Background="Transparent"
+                      ResizeDirection="Columns"/>
+
         <!-- ============================================================== main -->
-        <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="Auto,*,Auto">
 
             <Border Grid.Row="0"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -276,7 +341,7 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="0,0,0,1">
                     <StackPanel Spacing="6">
-                        <Grid ColumnDefinitions="*,Auto,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                             <TextBox Text="{Binding EditorTitle, Mode=TwoWay}"
                                      FontSize="20"
                                      FontWeight="SemiBold"
@@ -304,6 +369,29 @@
                                     <TextBlock Text="Save"/>
                                 </StackPanel>
                             </Button>
+                            <StackPanel Grid.Column="3"
+                                        Orientation="Horizontal"
+                                        Spacing="8"
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Click twice to confirm"
+                                           Classes="meta"
+                                           FontSize="10.5"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding ConfirmDelete}"/>
+                                <Button Classes="ghost danger"
+                                        Command="{Binding DeleteNoteCommand}"
+                                        IsVisible="{Binding HasActiveNote}"
+                                        ToolTip.Tip="Delete this note">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Classes="icon"
+                                                   FontSize="16"
+                                                   Text="{x:Static controls:Symbols.Delete}"
+                                                   Foreground="{DynamicResource DangerBrush}"/>
+                                        <TextBlock Text="Delete note"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
                         </Grid>
 
                         <Grid ColumnDefinitions="*,Auto">
@@ -347,6 +435,7 @@
 
                 <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="20,8,20,12">
                     <TextBox Grid.Column="0"
+                             x:Name="BodyEditor"
                              Text="{Binding EditorBody, Mode=TwoWay}"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
@@ -405,32 +494,11 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="0,1,0,0"
                         Padding="20,8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding StatusMessage}"
-                                   FontSize="11.5"
-                                   Foreground="{DynamicResource MutedBrush}"
-                                   TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center"/>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                            <Button Classes="ghost danger"
-                                    Command="{Binding DeleteNoteCommand}"
-                                    IsVisible="{Binding HasActiveNote}"
-                                    ToolTip.Tip="Delete this note">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock Classes="icon"
-                                               FontSize="16"
-                                               Text="{x:Static controls:Symbols.Delete}"
-                                               Foreground="{DynamicResource DangerBrush}"/>
-                                    <TextBlock Text="Delete note"/>
-                                </StackPanel>
-                            </Button>
-                            <TextBlock Text="Click twice to confirm"
-                                       Classes="meta"
-                                       FontSize="10.5"
-                                       VerticalAlignment="Center"
-                                       IsVisible="{Binding ConfirmDelete}"/>
-                        </StackPanel>
-                    </Grid>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="11.5"
+                               Foreground="{DynamicResource MutedBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
                 </Border>
             </Grid>
 
@@ -448,9 +516,41 @@
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding ReaderCitation}"
                                        Classes="meta"/>
-                            <TextBlock Text="{Binding ReaderMeta}"
-                                       Classes="meta"
-                                       FontSize="10.5"/>
+                            <ItemsControl ItemsSource="{Binding ReaderDetails}"
+                                          Margin="0,4,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MetadataRowViewModel">
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,1,18,1">
+                                            <TextBlock Text="{Binding Label}"
+                                                       Classes="meta"
+                                                       FontSize="10.5"
+                                                       Width="76"
+                                                       VerticalAlignment="Top"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Value}"
+                                                       FontSize="11.5"
+                                                       TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Spacing="2"
+                                        Margin="0,6,0,0"
+                                        IsVisible="{Binding HasReaderAbstract}">
+                                <TextBlock Text="ABSTRACT" Classes="section" FontSize="9.5"/>
+                                <TextBlock Text="{Binding ReaderAbstract}"
+                                           Classes="muted"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           MaxLines="4"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1"
@@ -511,7 +611,8 @@
                                                                  TextWrapping="Wrap"
                                                                  FontSize="13"
                                                                  LineHeight="20"
-                                                                 Foreground="{DynamicResource TextBrush}"/>
+                                                                 Foreground="{DynamicResource TextBrush}"
+                                                                 PointerReleased="OnPageTextPointerReleased"/>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -560,8 +661,15 @@
                        IsVisible="{Binding IsGraphView}"/>
         </Grid>
 
+        <GridSplitter Grid.Row="1" Grid.Column="3"
+                      x:Name="ReviewSplitter"
+                      Background="Transparent"
+                      ResizeDirection="Columns"/>
+
         <!-- ====================================================== right panel -->
-        <Border Grid.Row="1" Grid.Column="2"
+        <Border Grid.Row="1" Grid.Column="4"
+                x:Name="ReviewPanel"
+                MinWidth="240"
                 Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0">

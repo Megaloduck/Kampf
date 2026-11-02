@@ -11,7 +11,13 @@ This repository implements the **Phase 1 MVP** from `Plan_Kampf.pdf`.
 - **Notes** — markdown notes with `[[wikilinks]]`. Linking is resolved by title;
   unresolved targets are *not* auto-created, they become review-queue proposals.
 - **PDF import** — PDFs are copied into the vault and their text is extracted per
-  page (PdfPig). Citation metadata (title, author, year, DOI when present) is captured.
+  page (PdfPig). Citation metadata (title, authors, year, DOI) is captured, plus
+  the detail a PDF or its XMP packet carries: item type, abstract, publication,
+  volume, issue, page range, ISSN, URL, keywords and language, with DOI / ISSN /
+  page-range fallbacks read from the opening pages.
+- **Reader details** — the reader header lists every captured field for the open
+  paper (missing ones are omitted, not shown blank) with the abstract underneath.
+  Older vaults gain the new columns automatically when they are opened.
 - **Highlight → note** — select text on a page in the Reader, click
   *Capture selection → note*; the note keeps the document and page anchor, and
   appears in the graph connected to its paper.
@@ -28,6 +34,16 @@ graph canvas and markdown preview follow the active theme.
 - **Deletion** — notes and imported papers can be deleted (both ask for a second
 click). Deleting a paper removes its stored PDF, highlights and edges; it is
 refused while notes still carry page anchors into it.
+- **Undo / redo** — icon buttons in the window header, next to the theme switch,
+  backed by Avalonia's text history (`Ctrl+Z` / `Ctrl+Y` also work). They stay
+  disabled until a note is loaded and its history has something to undo.
+  History starts fresh per note, so undo can never pull text from another note.
+- **Resizable panels** — the note list and the review queue are separated from
+  the workspace by draggable splitters (hover highlights the grip, minimum
+  widths keep both readable). Each has its own header button to hide it and
+  bring it back with the width you last dragged it to.
+- **Drag and drop** — drop one or more PDFs anywhere on the workspace to import
+  them; the cursor shows a copy badge only when the payload contains a `.pdf`.
 - **Markdown files on disk** — every note is mirrored to `vault/notes/{id}.md`
   with YAML front matter; SQLite is the index, markdown is your data.
 

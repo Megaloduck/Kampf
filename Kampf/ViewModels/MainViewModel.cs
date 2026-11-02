@@ -50,6 +50,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _suppressSelection;
     private bool _suppressEditor;
 
+    /// <summary>Raised after a note is loaded into the editor, i.e. a fresh undo baseline.</summary>
+    public event EventHandler? EditorReloaded;
+
     public MainViewModel(Vault vault)
     {
         _vault = vault;
@@ -75,6 +78,7 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<AuditRowViewModel> Activity { get; } = new();
     public ObservableCollection<PageViewModel> Pages { get; } = new();
     public ObservableCollection<NoteRowViewModel> AnchoredNotes { get; } = new();
+    public ObservableCollection<MetadataRowViewModel> ReaderDetails { get; } = new();
     public ObservableCollection<string> SourceFilters { get; }
     public ObservableCollection<string> TagFilters { get; }
 
@@ -128,8 +132,13 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _tagFilter = AllTags;
     [ObservableProperty] private string _readerTitle = string.Empty;
     [ObservableProperty] private string _readerCitation = string.Empty;
-    [ObservableProperty] private string _readerMeta = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReaderAbstract))]
+    private string _readerAbstract = string.Empty;
     [ObservableProperty] private bool _confirmDeleteDocument;
+
+    /// <summary>The paper's abstract, when the PDF carried one.</summary>
+    public bool HasReaderAbstract => ReaderAbstract.Length > 0;
 
     public bool HasSelectedNote => SelectedNote is not null;
     public bool HasSelectedDocument => SelectedDocument is not null;
@@ -453,6 +462,10 @@ public partial class MainViewModel : ViewModelBase
             IsDirty = false;
             ConfirmDelete = false;
 
+            var anchored = AnchoredNotes.FirstOrDefault(n => n.Note.Id == id);
+            if (anchored is not null)
+                AnchoredNotes.Remove(anchored);
+
             await RefreshAsync();
             StatusMessage = "Note deleted.";
         }
@@ -486,7 +499,8 @@ public partial class MainViewModel : ViewModelBase
             AnchoredNotes.Clear();
             ReaderTitle = string.Empty;
             ReaderCitation = string.Empty;
-            ReaderMeta = string.Empty;
+            ReaderAbstract = string.Empty;
+            ReaderDetails.Clear();
             ConfirmDeleteDocument = false;
 
             _suppressSelection = true;
@@ -515,6 +529,18 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var files = await PickPdfFiles();
+        if (files.Count == 0)
+            return;
+
+        await ImportFilesAsync(files);
+    }
+
+    /// <summary>
+    /// Imports PDFs that arrived from somewhere other than the file picker
+    /// (a drop onto the window). Extension filtering happens in the view.
+    /// </summary>
+    public async Task ImportFilesAsync(IReadOnlyList<string> files)
+    {
         if (files.Count == 0)
             return;
 
@@ -721,27 +747,35 @@ public partial class MainViewModel : ViewModelBase
         SelectedDocument = Documents.FirstOrDefault(d => d.Document.Id == document.Id) ?? SelectedDocument;
         View = VaultView.Reader;
         ReaderTitle = document.Title;
-        ReaderCitation = string.IsNullOrWhiteSpace(document.Authors)
-            ? $"{(document.Year?.ToString() ?? "n.d.")} \u00b7 {document.FileName}"
-            : $"{document.Authors} \u00b7 {document.Year?.ToString() ?? "n.d."}";
-        ReaderMeta = $"{document.PageCount} pages";
         IsBusy = true;
 
         try
         {
+            PdfExtraction? extraction = null;
+
             if (!_pageCache.TryGetValue(document.Id, out var pages))
             {
                 if (!File.Exists(document.FilePath))
                 {
                     Pages.Clear();
+                    ReaderCitation = BuildCitationLine(document);
+                    FillReaderDetails(document);
                     StatusMessage = $"PDF missing from vault: {document.FileName}";
                     return;
                 }
 
-                var extraction = await _vault.PdfExtractor.ExtractAsync(document.FilePath);
+                extraction = await _vault.PdfExtractor.ExtractAsync(document.FilePath);
                 pages = extraction.Pages.Select(p => new PageViewModel(p.Page, p.Text)).ToList();
                 _pageCache[document.Id] = pages;
             }
+
+            // Papers imported before the detail capture existed fill in on first open.
+            if (extraction is not null && ApplyDetail(document, extraction))
+                await _vault.Repository.SaveDocumentAsync(document);
+
+            ReaderCitation = BuildCitationLine(document);
+            ReaderAbstract = document.Abstract ?? string.Empty;
+            FillReaderDetails(document);
 
             Pages.Clear();
             foreach (var page in pages)
@@ -764,6 +798,119 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Authors, year and journal when known; the file name otherwise.</summary>
+    private static string BuildCitationLine(PdfDocument document)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(document.Authors))
+            parts.Add(document.Authors);
+
+        parts.Add(document.Year?.ToString() ?? "n.d.");
+
+        parts.Add(string.IsNullOrWhiteSpace(document.Publication)
+            ? document.FileName
+            : document.Publication);
+
+        return string.Join(" \u00b7 ", parts);
+    }
+
+    /// <summary>
+    /// The reader's citation table: every field the import actually captured.
+    /// Missing fields are omitted rather than shown empty.
+    /// </summary>
+    private void FillReaderDetails(PdfDocument document)
+    {
+        ReaderDetails.Clear();
+
+        Add("Item type", document.ItemType ?? "Document");
+        Add("Authors", document.Authors);
+        Add("Publication", document.Publication);
+        Add("Volume", document.Volume);
+        Add("Issue", document.Issue);
+
+        if (string.IsNullOrWhiteSpace(document.PageRange))
+        {
+            Add("Pages", $"{document.PageCount} in file");
+        }
+        else
+        {
+            Add("Pages", document.PageRange);
+            Add("PDF pages", document.PageCount.ToString());
+        }
+
+        Add("Date", document.Year?.ToString());
+        Add("DOI", document.Doi);
+        Add("ISSN", document.Issn);
+        Add("URL", document.Url);
+        Add("Language", document.Language);
+        Add("Keywords", document.Keywords);
+        Add("File", document.FileName);
+        Add("Size", FormatSize(document.FilePath));
+        Add("Imported", document.ImportedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm"));
+
+        void Add(string label, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                ReaderDetails.Add(new MetadataRowViewModel(label, value.Trim()));
+        }
+    }
+
+    private static string? FormatSize(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists)
+                return null;
+
+            var kilobytes = info.Length / 1024.0;
+            return kilobytes >= 1024 ? $"{kilobytes / 1024:0.0} MB" : $"{kilobytes:0} KB";
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fills missing citation detail from a fresh extraction. Papers imported before
+    /// the detail capture existed get populated the first time they are opened.
+    /// </summary>
+    private static bool ApplyDetail(PdfDocument document, PdfExtraction extraction)
+    {
+        var changed = false;
+
+        void Fill(Func<string?> current, Action<string?> set, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(current()) || string.IsNullOrWhiteSpace(value))
+                return;
+
+            set(value);
+            changed = true;
+        }
+
+        Fill(() => document.ItemType, v => document.ItemType = v, extraction.ItemType);
+        Fill(() => document.Abstract, v => document.Abstract = v, extraction.Abstract);
+        Fill(() => document.Publication, v => document.Publication = v, extraction.Publication);
+        Fill(() => document.Volume, v => document.Volume = v, extraction.Volume);
+        Fill(() => document.Issue, v => document.Issue = v, extraction.Issue);
+        Fill(() => document.PageRange, v => document.PageRange = v, extraction.PageRange);
+        Fill(() => document.Issn, v => document.Issn = v, extraction.Issn);
+        Fill(() => document.Url, v => document.Url = v, extraction.Url);
+        Fill(() => document.Keywords, v => document.Keywords = v, extraction.Keywords);
+        Fill(() => document.Language, v => document.Language = v, extraction.Language);
+        Fill(() => document.Doi, v => document.Doi = v, extraction.Doi);
+
+        if (document.Year is null && extraction.Year is not null)
+        {
+            document.Year = extraction.Year;
+            changed = true;
+        }
+
+        return changed;
+    }
+
     /// <summary>Called by the reader when the user highlights text and captures it.</summary>
     public async Task CreateNoteFromHighlightAsync(int page, string text)
     {
@@ -784,6 +931,11 @@ public partial class MainViewModel : ViewModelBase
             var note = await _noteService.CreateFromHighlightAsync(SelectedDocument.Document, page, text);
             await RefreshAsync();
             SelectNoteById(note.Id);
+
+            // The reader is left open behind the editor, so its list must not go stale.
+            if (SelectedDocument?.Document.Id == note.SourceDocumentId)
+                AnchoredNotes.Insert(0, new NoteRowViewModel(note));
+
             View = VaultView.Editor;
             StatusMessage = $"Note captured from page {page} \u2014 it keeps the page anchor.";
         }
@@ -864,6 +1016,7 @@ public partial class MainViewModel : ViewModelBase
         _suppressEditor = false;
         IsDirty = false;
         OnPropertyChanged(nameof(HasActiveNote));
+        EditorReloaded?.Invoke(this, EventArgs.Empty);
 
         var document = note.SourceDocumentId is null
             ? null

@@ -16,6 +16,18 @@ public sealed class PdfDocument
     public int? Year { get; set; }
     public string? Doi { get; set; }
     public int PageCount { get; set; }
+
+    // Citation detail captured on import; null means the PDF did not carry it.
+    public string? ItemType { get; set; }
+    public string? Abstract { get; set; }
+    public string? Publication { get; set; }
+    public string? Volume { get; set; }
+    public string? Issue { get; set; }
+    public string? PageRange { get; set; }
+    public string? Issn { get; set; }
+    public string? Url { get; set; }
+    public string? Keywords { get; set; }
+    public string? Language { get; set; }
     public DateTimeOffset ImportedAt { get; set; } = DateTimeOffset.Now;
 
     public static PdfDocument Create(string filePath, string title, int pageCount)

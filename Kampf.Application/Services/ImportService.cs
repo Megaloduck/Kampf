@@ -38,6 +38,16 @@ public sealed class ImportService
         document.Year = citation.Year;
         document.Doi = citation.Doi
                        ?? CitationService.FindDoi(string.Concat(extraction.Pages.Take(2).Select(p => p.Text)));
+        document.ItemType = extraction.ItemType;
+        document.Abstract = extraction.Abstract;
+        document.Publication = extraction.Publication;
+        document.Volume = extraction.Volume;
+        document.Issue = extraction.Issue;
+        document.PageRange = extraction.PageRange;
+        document.Issn = extraction.Issn;
+        document.Url = extraction.Url;
+        document.Keywords = extraction.Keywords;
+        document.Language = extraction.Language;
 
         await _repo.SaveDocumentAsync(document, ct);
         await _repo.AppendAuditAsync(

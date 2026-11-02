@@ -1,4 +1,5 @@
 using Kampf.Domain.Entities;
+using Microsoft.Data.Sqlite;
 using Kampf.Domain.ValueObjects;
 using Kampf.Infrastructure.Storage;
 using Xunit;
@@ -130,6 +131,79 @@ public sealed class VaultRepositoryTests : IDisposable
 
         Assert.Single(onlyPending);
         Assert.Equal(SuggestionStatus.Pending, onlyPending[0].Status);
+    }
+
+    [Fact]
+    public async Task Document_citation_detail_round_trips()
+    {
+        await _repo.InitializeAsync();
+
+        var document = PdfDocument.Create(Path.Combine(_root, "paper.pdf"), "A Paper", 12);
+        document.Authors = "Wang; Huang";
+        document.Year = 2023;
+        document.Doi = "10.1007/s11423-023-10247-8";
+        document.ItemType = "Journal article";
+        document.Abstract = "An abstract from the XMP packet.";
+        document.Publication = "Educational technology research and development";
+        document.Volume = "71";
+        document.Issue = "4";
+        document.PageRange = "1547-1565";
+        document.Issn = "1042-1629";
+        document.Url = "https://example.org/paper";
+        document.Keywords = "games, learning";
+        document.Language = "en";
+
+        await _repo.SaveDocumentAsync(document);
+        var loaded = await _repo.GetDocumentAsync(document.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Journal article", loaded!.ItemType);
+        Assert.Equal("Educational technology research and development", loaded.Publication);
+        Assert.Equal("71", loaded.Volume);
+        Assert.Equal("4", loaded.Issue);
+        Assert.Equal("1547-1565", loaded.PageRange);
+        Assert.Equal("1042-1629", loaded.Issn);
+        Assert.Equal("https://example.org/paper", loaded.Url);
+        Assert.Equal("games, learning", loaded.Keywords);
+        Assert.Equal("en", loaded.Language);
+        Assert.Equal("An abstract from the XMP packet.", loaded.Abstract);
+    }
+
+    [Fact]
+    public async Task A_vault_from_before_the_detail_columns_gains_them_on_open()
+    {
+        var database = Path.Combine(_root, "kampf.db");
+        await using (var connection = new SqliteConnection($"Data Source={database}"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE documents (
+                    id          TEXT PRIMARY KEY,
+                    file_path   TEXT NOT NULL,
+                    file_name   TEXT NOT NULL,
+                    title       TEXT NOT NULL,
+                    authors     TEXT NOT NULL,
+                    year        INTEGER NULL,
+                    doi         TEXT NULL,
+                    page_count  INTEGER NOT NULL,
+                    imported_at TEXT NOT NULL
+                );
+                INSERT INTO documents VALUES
+                    ('old', '/vault/assets/old.pdf', 'old.pdf', 'Old paper', 'Someone', 2001, NULL, 3,
+                     '2024-01-01T00:00:00.0000000+00:00');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await _repo.InitializeAsync();
+
+        var loaded = await _repo.GetDocumentAsync("old");
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Old paper", loaded!.Title);
+        Assert.Equal(3, loaded.PageCount);
+        Assert.Null(loaded.Publication);
     }
 
     [Fact]

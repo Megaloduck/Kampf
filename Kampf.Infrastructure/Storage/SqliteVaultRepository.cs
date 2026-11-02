@@ -17,6 +17,18 @@ public sealed class SqliteVaultRepository : IVaultRepository
 {
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+    /// <summary>Column order shared by every document query and <see cref="ReadDocument"/>.</summary>
+    private const string DocumentColumns =
+        "id, file_path, file_name, title, authors, year, doi, page_count, imported_at, " +
+        "item_type, abstract, publication, volume, issue, page_range, issn, url, keywords, language";
+
+    /// <summary>Citation detail added after the first release; older vaults gain the columns on open.</summary>
+    private static readonly string[] DocumentDetailColumns =
+    {
+        "item_type", "abstract", "publication", "volume", "issue",
+        "page_range", "issn", "url", "keywords", "language",
+    };
+
     private readonly string _connectionString;
     private readonly string _notesDirectory;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -121,6 +133,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
             CREATE INDEX IF NOT EXISTS ix_suggestions_status ON suggestions (status);
             """, ct);
 
+        await EnsureDocumentDetailColumnsAsync(connection, ct);
+
         try
         {
             await ExecuteAsync(connection,
@@ -131,6 +145,28 @@ public sealed class SqliteVaultRepository : IVaultRepository
         {
             // Build without FTS5: search degrades to LIKE instead of failing.
             _ftsAvailable = false;
+        }
+    }
+
+    /// <summary>Adds the optional citation columns to a vault created before they existed.</summary>
+    private static async Task EnsureDocumentDetailColumnsAsync(SqliteConnection connection, CancellationToken ct)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(documents);";
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                existing.Add(reader.GetString(1));
+        }
+
+        foreach (var column in DocumentDetailColumns)
+        {
+            if (existing.Contains(column))
+                continue;
+
+            await ExecuteAsync(connection, $"ALTER TABLE documents ADD COLUMN {column} TEXT NULL;", ct);
         }
     }
 
@@ -479,10 +515,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT id, file_path, file_name, title, authors, year, doi, page_count, imported_at
-            FROM documents ORDER BY imported_at DESC;
-            """;
+        command.CommandText = $"SELECT {DocumentColumns} FROM documents ORDER BY imported_at DESC;";
 
         var documents = new List<PdfDocument>();
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -496,10 +529,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT id, file_path, file_name, title, authors, year, doi, page_count, imported_at
-            FROM documents WHERE id = $id;
-            """;
+        command.CommandText = $"SELECT {DocumentColumns} FROM documents WHERE id = $id;";
         command.Parameters.AddWithValue("$id", id);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -513,9 +543,11 @@ public sealed class SqliteVaultRepository : IVaultRepository
         {
             await using var connection = await OpenAsync(ct);
             await using var command = connection.CreateCommand();
-            command.CommandText = """
-                INSERT INTO documents (id, file_path, file_name, title, authors, year, doi, page_count, imported_at)
-                VALUES ($id, $path, $name, $title, $authors, $year, $doi, $pages, $imported)
+            command.CommandText = $"""
+                INSERT INTO documents ({DocumentColumns})
+                VALUES ($id, $path, $name, $title, $authors, $year, $doi, $pages, $imported,
+                        $itemType, $abstract, $publication, $volume, $issue,
+                        $pageRange, $issn, $url, $keywords, $language)
                 ON CONFLICT(id) DO UPDATE SET
                     file_path = excluded.file_path,
                     file_name = excluded.file_name,
@@ -523,7 +555,17 @@ public sealed class SqliteVaultRepository : IVaultRepository
                     authors = excluded.authors,
                     year = excluded.year,
                     doi = excluded.doi,
-                    page_count = excluded.page_count;
+                    page_count = excluded.page_count,
+                    item_type = excluded.item_type,
+                    abstract = excluded.abstract,
+                    publication = excluded.publication,
+                    volume = excluded.volume,
+                    issue = excluded.issue,
+                    page_range = excluded.page_range,
+                    issn = excluded.issn,
+                    url = excluded.url,
+                    keywords = excluded.keywords,
+                    language = excluded.language;
                 """;
             command.Parameters.AddWithValue("$id", document.Id);
             command.Parameters.AddWithValue("$path", document.FilePath);
@@ -534,6 +576,16 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.Parameters.AddWithValue("$doi", (object?)document.Doi ?? DBNull.Value);
             command.Parameters.AddWithValue("$pages", document.PageCount);
             command.Parameters.AddWithValue("$imported", ToDb(document.ImportedAt));
+            command.Parameters.AddWithValue("$itemType", (object?)document.ItemType ?? DBNull.Value);
+            command.Parameters.AddWithValue("$abstract", (object?)document.Abstract ?? DBNull.Value);
+            command.Parameters.AddWithValue("$publication", (object?)document.Publication ?? DBNull.Value);
+            command.Parameters.AddWithValue("$volume", (object?)document.Volume ?? DBNull.Value);
+            command.Parameters.AddWithValue("$issue", (object?)document.Issue ?? DBNull.Value);
+            command.Parameters.AddWithValue("$pageRange", (object?)document.PageRange ?? DBNull.Value);
+            command.Parameters.AddWithValue("$issn", (object?)document.Issn ?? DBNull.Value);
+            command.Parameters.AddWithValue("$url", (object?)document.Url ?? DBNull.Value);
+            command.Parameters.AddWithValue("$keywords", (object?)document.Keywords ?? DBNull.Value);
+            command.Parameters.AddWithValue("$language", (object?)document.Language ?? DBNull.Value);
             await command.ExecuteNonQueryAsync(ct);
         }
         finally
@@ -862,7 +914,20 @@ public sealed class SqliteVaultRepository : IVaultRepository
         Doi = reader.IsDBNull(6) ? null : reader.GetString(6),
         PageCount = reader.GetInt32(7),
         ImportedAt = FromDb(reader.GetString(8)),
+        ItemType = Text(reader, 9),
+        Abstract = Text(reader, 10),
+        Publication = Text(reader, 11),
+        Volume = Text(reader, 12),
+        Issue = Text(reader, 13),
+        PageRange = Text(reader, 14),
+        Issn = Text(reader, 15),
+        Url = Text(reader, 16),
+        Keywords = Text(reader, 17),
+        Language = Text(reader, 18),
     };
+
+    private static string? Text(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
     private static async Task AttachTagsAsync(SqliteConnection connection, IReadOnlyCollection<Note> notes, CancellationToken ct)
     {
