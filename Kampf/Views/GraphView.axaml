@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="640"
+             x:Class="Kampf.Views.GraphView"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding IsGraphView}">
+
+    <!-- Graph workspace: filters, canvas and the vault path. -->
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <ComboBox Width="136"
+                          ItemsSource="{Binding SourceFilters}"
+                          SelectedItem="{Binding SourceFilter, Mode=TwoWay}"/>
+                <ComboBox Width="150"
+                          ItemsSource="{Binding TagFilters}"
+                          SelectedItem="{Binding TagFilter, Mode=TwoWay}"/>
+                <TextBlock Text="Click to inspect · double-click to open · drag to arrange · scroll to zoom"
+                           Classes="meta"
+                           VerticalAlignment="Center"
+                           Margin="4,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <controls:GraphControl Grid.Row="1"
+                               x:Name="GraphCanvas"
+                               GraphSource="{Binding Graph}"
+                               SelectedNodeId="{Binding SelectedNodeId}"/>
+
+        <TextBlock Grid.Row="2"
+                   Text="{Binding VaultPath}"
+                   Classes="meta"
+                   FontSize="10"
+                   Margin="18,0,18,10"/>
+    </Grid>
+</UserControl>

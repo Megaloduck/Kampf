@@ -1,0 +1,180 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="640"
+             x:Class="Kampf.Views.NoteView"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding IsEditorView}">
+
+    <!-- Note workspace: title, tags, markdown editor and live preview. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <Border Grid.Row="0"
+                Padding="20,14,20,10"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                    <TextBox Text="{Binding EditorTitle, Mode=TwoWay}"
+                             FontSize="20"
+                             FontWeight="SemiBold"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             Watermark="Note title"/>
+                    <TextBlock Grid.Column="1"
+                               Text="● unsaved"
+                               Foreground="{DynamicResource WarnBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center"
+                               Margin="10,0"
+                               IsVisible="{Binding IsDirty}"/>
+                    <Button Grid.Column="2"
+                            Classes="primary"
+                            Command="{Binding SaveNoteCommand}"
+                            IsEnabled="{Binding HasActiveNote}"
+                            ToolTip.Tip="Save note">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon"
+                                       FontSize="16"
+                                       Text="{x:Static controls:Symbols.Save}"
+                                       Foreground="{DynamicResource OnAccentBrush}"/>
+                            <TextBlock Text="Save"/>
+                        </StackPanel>
+                    </Button>
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="Click twice to confirm"
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding ConfirmDelete}"/>
+                        <Button Classes="ghost danger"
+                                Command="{Binding DeleteNoteCommand}"
+                                IsVisible="{Binding HasActiveNote}"
+                                ToolTip.Tip="Delete this note">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.Delete}"
+                                           Foreground="{DynamicResource DangerBrush}"/>
+                                <TextBlock Text="Delete note"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding ProvenanceText}"
+                                   Classes="meta"
+                                   VerticalAlignment="Center"/>
+                        <Button Classes="link"
+                                Command="{Binding OpenSourceCommand}"
+                                IsVisible="{Binding CanOpenSource}"
+                                ToolTip.Tip="Open the source paper">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Open source"/>
+                                <TextBlock Classes="icon"
+                                           FontSize="13"
+                                           Text="{x:Static controls:Symbols.OpenInNew}"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding EditorMeta}"
+                               Classes="meta"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Padding="20,8" IsVisible="{Binding HasActiveNote}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="TAGS" Classes="section" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding EditorTags, Mode=TwoWay}"
+                         Watermark="methods, graph-theory (comma separated)"
+                         Width="380"
+                         FontSize="11.5"/>
+                <TextBlock Text="{Binding BacklinksText}"
+                           Classes="meta"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="20,8,20,12">
+            <TextBox Grid.Column="0"
+                     x:Name="BodyEditor"
+                     Text="{Binding EditorBody, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas, Menlo, monospace"
+                     FontSize="13"
+                     LineHeight="21"
+                     VerticalContentAlignment="Top"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Padding="14"
+                     Watermark="Write markdown. Use [[Another Note]] to connect ideas."/>
+
+            <Border Grid.Column="1"
+                    Margin="14,0,0,0"
+                    Background="{DynamicResource PanelBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="18,14">
+                <ScrollViewer>
+                    <ContentControl x:Name="PreviewHost"/>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                IsVisible="{Binding !HasActiveNote}"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Center">
+            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <TextBlock Classes="icon"
+                           FontSize="40"
+                           HorizontalAlignment="Center"
+                           Text="{x:Static controls:Symbols.Notes}"
+                           Foreground="{DynamicResource FaintBrush}"/>
+                <TextBlock Text="No note selected"
+                           FontSize="16"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Pick a note on the left or create a new one."
+                           Classes="muted"
+                           HorizontalAlignment="Center"/>
+                <Button Classes="primary"
+                        HorizontalAlignment="Center"
+                        Command="{Binding NewNoteCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="icon"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.NoteAdd}"
+                                   Foreground="{DynamicResource OnAccentBrush}"/>
+                        <TextBlock Text="Create note"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,8">
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource MutedBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</UserControl>

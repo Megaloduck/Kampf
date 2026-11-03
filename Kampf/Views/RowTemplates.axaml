@@ -1,0 +1,56 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="using:Kampf.ViewModels">
+
+    <!-- Shared list item templates, used by the sidebar and the reader. -->
+
+    <DataTemplate x:Key="NoteRowTemplate" x:DataType="vm:NoteRowViewModel">
+        <StackPanel Spacing="3">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Title}"
+                           FontWeight="SemiBold"
+                           FontSize="13"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding UpdatedLabel}"
+                           Classes="meta"
+                           FontSize="10.5"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"/>
+            </Grid>
+            <TextBlock Text="{Binding Preview}"
+                       Classes="muted"
+                       FontSize="11.5"
+                       TextWrapping="Wrap"
+                       MaxLines="2"
+                       TextTrimming="CharacterEllipsis"/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding TagLine}"
+                           Foreground="{DynamicResource AccentBrush}"
+                           FontSize="10.5"
+                           IsVisible="{Binding HasTags}"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding ProvenanceLabel, StringFormat='↷ {0}'}"
+                           Foreground="{DynamicResource SuccessBrush}"
+                           FontSize="10.5"
+                           IsVisible="{Binding HasProvenance}"/>
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="DocumentRowTemplate" x:DataType="vm:DocumentRowViewModel">
+        <StackPanel Spacing="3">
+            <TextBlock Text="{Binding Title}"
+                       FontWeight="SemiBold"
+                       FontSize="12.5"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding CitationLine}"
+                       Classes="muted"
+                       FontSize="11"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding MetaLine}"
+                       Foreground="{DynamicResource FaintBrush}"
+                       FontSize="10.5"/>
+        </StackPanel>
+    </DataTemplate>
+</ResourceDictionary>

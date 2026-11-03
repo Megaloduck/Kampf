@@ -6,7 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using Avalonia.VisualTree;
 using Kampf.Controls;
 using Kampf.ViewModels;
 
@@ -20,14 +19,10 @@ public partial class MainView : UserControl
     {
         InitializeComponent();
 
-        GraphView.NodeSelected += OnGraphNodeSelected;
-        GraphView.NodeActivated += OnGraphNodeActivated;
         DataContextChanged += OnDataContextChanged;
 
-        // The markdown preview resolves its brushes when it is built.
-        ActualThemeVariantChanged += (_, _) => RebuildPreview();
-
-        BodyEditor.TextChanged += (_, _) => UpdateHistoryButtons();
+        // Undo and redo live in the header, so they follow the editor's history.
+        NoteEditor.HistoryChanged += (_, _) => UpdateHistoryButtons();
         UpdateHistoryButtons();
 
         // PDFs can be dropped anywhere on the workspace.
@@ -39,49 +34,21 @@ public partial class MainView : UserControl
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_bound is not null)
-        {
             _bound.PropertyChanged -= OnViewModelPropertyChanged;
-            _bound.EditorReloaded -= OnEditorReloaded;
-        }
 
         _bound = DataContext as MainViewModel;
 
         if (_bound is not null)
-        {
             _bound.PropertyChanged += OnViewModelPropertyChanged;
-            _bound.EditorReloaded += OnEditorReloaded;
-        }
 
-        RebuildPreview();
         UpdateHistoryButtons();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
-        {
-            case nameof(MainViewModel.EditorBody):
-                RebuildPreview();
-                break;
-            case nameof(MainViewModel.HasActiveNote):
-                RebuildPreview();
-                UpdateHistoryButtons();
-                break;
-        }
-    }
-
-    private void RebuildPreview()
-    {
-        if (_bound is null)
-        {
-            PreviewHost.Content = null;
-            return;
-        }
-
-        var viewModel = _bound;
-        PreviewHost.Content = MarkdownPreview.Build(
-            viewModel.EditorBody,
-            target => _ = viewModel.OpenWikiLinkAsync(target));
+        // A newly loaded note replaces the editor's undo history.
+        if (e.PropertyName is nameof(MainViewModel.HasActiveNote) or nameof(MainViewModel.EditorBody))
+            UpdateHistoryButtons();
     }
 
     // --------------------------------------------------------- panel layout
@@ -151,32 +118,17 @@ public partial class MainView : UserControl
 
     // ------------------------------------------------------------ undo / redo
 
-    private void OnUndoClick(object? sender, RoutedEventArgs e)
-    {
-        BodyEditor.Undo();
-        UpdateHistoryButtons();
-    }
+    private void OnUndoClick(object? sender, RoutedEventArgs e) => NoteEditor.Undo();
 
-    private void OnRedoClick(object? sender, RoutedEventArgs e)
-    {
-        BodyEditor.Redo();
-        UpdateHistoryButtons();
-    }
+    private void OnRedoClick(object? sender, RoutedEventArgs e) => NoteEditor.Redo();
 
     private void UpdateHistoryButtons()
     {
         // The buttons live in the window header, so they only mean something
         // while a note is loaded into the editor.
         var hasNote = _bound?.HasActiveNote == true;
-        UndoButton.IsEnabled = hasNote && BodyEditor.CanUndo;
-        RedoButton.IsEnabled = hasNote && BodyEditor.CanRedo;
-    }
-
-    /// <summary>A freshly loaded note starts a new history, so undo can't cross notes.</summary>
-    private void OnEditorReloaded(object? sender, EventArgs e)
-    {
-        TextBoxHistory.Clear(BodyEditor);
-        UpdateHistoryButtons();
+        UndoButton.IsEnabled = hasNote && NoteEditor.CanUndo;
+        RedoButton.IsEnabled = hasNote && NoteEditor.CanRedo;
     }
 
     // ---------------------------------------------------- drag and drop import
@@ -218,9 +170,7 @@ public partial class MainView : UserControl
             .ToList();
     }
 
-    private void OnGraphNodeSelected(object? sender, GraphNodeEventArgs e) => _bound?.HighlightNode(e.Node);
-
-    private void OnGraphNodeActivated(object? sender, GraphNodeEventArgs e) => _bound?.OpenNode(e.Node);
+    // --------------------------------------------------------------- sidebar
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
@@ -231,46 +181,5 @@ public partial class MainView : UserControl
             _bound.SearchCommand.Execute(null);
 
         e.Handled = true;
-    }
-
-    private void OnCapturePageClick(object? sender, RoutedEventArgs e)
-    {
-        if (_bound is null || sender is not Button button || button.DataContext is not PageViewModel page)
-            return;
-
-        var card = button.FindAncestorOfType<Border>();
-        var textBlock = card?.GetVisualDescendants().OfType<SelectableTextBlock>().FirstOrDefault();
-
-        // Pressing the button moves focus off the page, and SelectableTextBlock
-        // clears its selection on focus loss. Fall back to the snapshot taken
-        // when the pointer was released.
-        var live = ReadSelection(textBlock);
-        var text = string.IsNullOrWhiteSpace(live) ? page.SelectedText : live;
-
-        textBlock?.ClearSelection();
-        page.SelectedText = string.Empty;
-
-        _ = _bound.CreateNoteFromHighlightAsync(page.Number, text);
-    }
-
-    /// <summary>Remembers the selection while the page still owns focus.</summary>
-    private static void OnPageTextPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (sender is SelectableTextBlock block && block.DataContext is PageViewModel page)
-            page.SelectedText = ReadSelection(block);
-    }
-
-    private static string ReadSelection(SelectableTextBlock? textBlock)
-    {
-        if (textBlock?.Text is null)
-            return string.Empty;
-
-        var start = Math.Min(textBlock.SelectionStart, textBlock.SelectionEnd);
-        var end = Math.Max(textBlock.SelectionStart, textBlock.SelectionEnd);
-
-        if (end <= start || end > textBlock.Text.Length)
-            return string.Empty;
-
-        return textBlock.Text.Substring(start, end - start).Trim();
     }
 }

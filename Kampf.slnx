@@ -11,7 +11,9 @@
   </Folder>
   <Folder Name="/hosts/">
     <Project Path="Kampf.Desktop/Kampf.Desktop.csproj" />
-    <Project Path="Kampf.Android/Kampf.Android.csproj" />
+    <Project Path="Kampf.Android/Kampf.Android.csproj">
+      <Deploy Solution="Debug|*" />
+    </Project>
     <Project Path="Kampf.iOS/Kampf.iOS.csproj" />
   </Folder>
   <Folder Name="/tests/">
