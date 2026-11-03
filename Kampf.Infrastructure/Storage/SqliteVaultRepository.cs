@@ -5,6 +5,7 @@ using Kampf.Application.Models;
 using Kampf.Domain.Entities;
 using Kampf.Domain.ValueObjects;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 
 namespace Kampf.Infrastructure.Storage;
 
@@ -34,7 +35,17 @@ public sealed class SqliteVaultRepository : IVaultRepository
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private bool _ftsAvailable = true;
 
-    public SqliteVaultRepository(string databasePath, string notesDirectory)
+    /// <summary>Hex of the SQLCipher key, or null while the vault is unencrypted.</summary>
+    private string? _keyHex;
+
+    static SqliteVaultRepository()
+    {
+        // The SQLCipher provider has to be registered before any connection opens:
+        // the desktop app, the tests and the CLI all go through this type.
+        Batteries_V2.Init();
+    }
+
+    public SqliteVaultRepository(string databasePath, string notesDirectory, string? keyHex = null)
     {
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -42,6 +53,44 @@ public sealed class SqliteVaultRepository : IVaultRepository
             Pooling = true,
         }.ToString();
         _notesDirectory = notesDirectory;
+        _keyHex = string.IsNullOrWhiteSpace(keyHex) ? null : keyHex;
+
+        // Plain markdown mirrors leak note bodies, so they are off by default for
+        // an encrypted vault and switched on explicitly for a plaintext one.
+        WriteMarkdownMirror = _keyHex is null;
+    }
+
+    /// <summary>
+    /// When false, note bodies are no longer mirrored to <c>notes/*.md</c>. The
+    /// encrypted vault keeps every note inside the database only.
+    /// </summary>
+    public bool WriteMarkdownMirror { get; set; }
+
+    /// <summary>
+    /// Switches the connection key. Called after an encryption, decryption or
+    /// passphrase change rewrote the database file.
+    /// </summary>
+    public void UseKey(string? keyHex)
+    {
+        SqliteConnection.ClearAllPools();
+        _keyHex = string.IsNullOrWhiteSpace(keyHex) ? null : keyHex;
+        WriteMarkdownMirror = _keyHex is null;
+    }
+
+    /// <summary>Removes the plaintext note mirrors (used when the vault is encrypted).</summary>
+    public int DeleteMarkdownMirrors()
+    {
+        if (!Directory.Exists(_notesDirectory))
+            return 0;
+
+        var removed = 0;
+        foreach (var file in Directory.EnumerateFiles(_notesDirectory, "*.md"))
+        {
+            File.Delete(file);
+            removed++;
+        }
+
+        return removed;
     }
 
     // ---------------------------------------------------------------- schema
@@ -1047,6 +1096,15 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(ct);
+
+        if (_keyHex is not null)
+        {
+            // Raw key, set as the first statement on the connection. Passing it to
+            // SqliteConnectionStringBuilder.Password would quote the value and
+            // break the "x'hex'" form, so the pragma is issued here instead.
+            await ExecuteAsync(connection, $"PRAGMA key = \"x'{_keyHex}'\";", ct);
+        }
+
         return connection;
     }
 
@@ -1144,6 +1202,9 @@ public sealed class SqliteVaultRepository : IVaultRepository
     /// <summary>Writes the note to a plain markdown file (mirror, SQLite stays canonical).</summary>
     private async Task WriteMarkdownAsync(Note note, CancellationToken ct)
     {
+        if (!WriteMarkdownMirror)
+            return;
+
         Directory.CreateDirectory(_notesDirectory);
 
         var builder = new StringBuilder();

@@ -24,6 +24,26 @@ public partial class MainWindow : Window
         RootView.DataContext = viewModel;
     }
 
+    /// <summary>
+    /// Replaces the shell with the unlock overlay. <paramref name="unlock"/> is
+    /// given the entered passphrase and is expected to either attach the shell
+    /// or throw, in which case the message is shown in the overlay.
+    /// </summary>
+    public void ShowLockScreen(string vaultPath, Func<string, Task> unlock)
+    {
+        RootView.IsVisible = false;
+        LockView.DataContext = new UnlockViewModel(vaultPath, unlock);
+        LockView.IsVisible = true;
+        LockView.FocusPassphrase();
+    }
+
+    public void HideLockScreen()
+    {
+        LockView.IsVisible = false;
+        LockView.DataContext = null;
+        RootView.IsVisible = true;
+    }
+
     public void ShowFailure(Exception exception)
     {
         RootView.Content = new Border

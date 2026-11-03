@@ -95,6 +95,13 @@
                         </Button>
                     </StackPanel>
                     <Button Classes="ghost iconButton"
+                            Command="{Binding ShowSettingsCommand}"
+                            ToolTip.Tip="Settings">
+                        <TextBlock Classes="icon"
+                                   FontSize="19"
+                                   Text="{x:Static controls:Symbols.Settings}"/>
+                    </Button>
+                    <Button Classes="ghost iconButton"
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip.Tip="{Binding ThemeButtonLabel}">
                         <Panel>
@@ -279,6 +286,7 @@
             <views:NoteView Grid.Row="1" x:Name="NoteEditor"/>
             <views:ReaderView Grid.Row="1"/>
             <views:ChatView Grid.Row="1"/>
+            <views:SettingsView Grid.Row="1"/>
         </Grid>
 
         <GridSplitter Grid.Row="1" Grid.Column="3"

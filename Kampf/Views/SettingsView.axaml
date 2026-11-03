@@ -1,0 +1,244 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="640"
+             x:Class="Kampf.Views.SettingsView"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding IsSettingsView}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                Padding="20,14,20,12"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="5">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Classes="icon"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Settings}"
+                                   Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock Text="SETTINGS" Classes="section" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Appearance, vault encryption and the local models this vault talks to."
+                               Classes="meta"
+                               FontSize="10.5"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="ghost"
+                        Padding="10,4"
+                        Command="{Binding CloseSettingsCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Classes="icon" FontSize="15" Text="{x:Static controls:Symbols.Close}"/>
+                        <TextBlock Text="Close" FontSize="11.5"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="20,16,20,28" Spacing="14">
+
+                <!-- ============================================ appearance -->
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="APPEARANCE" Classes="section"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Theme" FontSize="12.5"/>
+                                <TextBlock Text="{Binding ThemeButtonLabel}" Classes="meta" FontSize="11"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Command="{Binding ToggleThemeCommand}"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="icon"
+                                               FontSize="16"
+                                               Text="{x:Static controls:Symbols.LightMode}"
+                                               IsVisible="{Binding IsDarkTheme}"/>
+                                    <TextBlock Classes="icon"
+                                               FontSize="16"
+                                               Text="{x:Static controls:Symbols.DarkMode}"
+                                               IsVisible="{Binding !IsDarkTheme}"/>
+                                    <TextBlock Text="Switch"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ================================================= vault -->
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.ShieldLock}"
+                                       Foreground="{DynamicResource AccentBrush}"/>
+                            <TextBlock Text="VAULT &amp; ENCRYPTION" Classes="section" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding EncryptionStatus}" FontSize="12.5"/>
+                            <TextBlock Text="{Binding EncryptionHint}"
+                                       Classes="meta"
+                                       FontSize="11"
+                                       TextWrapping="Wrap"
+                                       LineHeight="17"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="PLAINTEXT MARKDOWN MIRRORS" Classes="section" FontSize="9.5"/>
+                            <CheckBox IsChecked="{Binding WriteMarkdownMirrors, Mode=TwoWay}"
+                                      IsEnabled="{Binding MirrorToggleEnabled}"
+                                      Content="Also write notes to notes/*.md"
+                                      FontSize="12"/>
+                            <TextBlock Text="{Binding MirrorStatus}"
+                                       Classes="meta"
+                                       FontSize="10.5"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Border Background="{DynamicResource PanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="12,10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Passphrase"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"/>
+
+                                <TextBox Text="{Binding CurrentPassphrase, Mode=TwoWay}"
+                                         Watermark="Current passphrase"
+                                         PasswordChar="●"
+                                         FontSize="12"/>
+
+                                <Grid ColumnDefinitions="*,8,*">
+                                    <TextBox Text="{Binding NewPassphrase, Mode=TwoWay}"
+                                             Watermark="New passphrase (8+ characters)"
+                                             PasswordChar="●"
+                                             FontSize="12"/>
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding ConfirmPassphrase, Mode=TwoWay}"
+                                             Watermark="Repeat new passphrase"
+                                             PasswordChar="●"
+                                             FontSize="12"/>
+                                </Grid>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Classes="primary"
+                                            Margin="0,0,8,0"
+                                            Command="{Binding EnableEncryptionCommand}"
+                                            IsEnabled="{Binding !IsVaultEncrypted}"
+                                            IsVisible="{Binding !IsVaultEncrypted}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Classes="icon"
+                                                       FontSize="15"
+                                                       Text="{x:Static controls:Symbols.ShieldLock}"
+                                                       Foreground="{DynamicResource OnAccentBrush}"/>
+                                            <TextBlock Text="Encrypt vault"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <StackPanel Orientation="Horizontal"
+                                                Spacing="8"
+                                                IsVisible="{Binding IsVaultEncrypted}">
+                                        <Button Command="{Binding ChangePassphraseCommand}"
+                                                IsEnabled="{Binding CanChangePassphrase}">
+                                            <TextBlock Text="Change passphrase"/>
+                                        </Button>
+                                        <Button Classes="danger"
+                                                Command="{Binding DisableEncryptionCommand}"
+                                                IsEnabled="{Binding CanChangePassphrase}">
+                                            <TextBlock Text="Turn encryption off"/>
+                                        </Button>
+                                    </StackPanel>
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding SettingsMessage}"
+                                           IsVisible="{Binding HasSettingsMessage}"
+                                           Foreground="{DynamicResource SuccessBrush}"
+                                           FontSize="10.5"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding SettingsError}"
+                                           IsVisible="{Binding HasSettingsError}"
+                                           Foreground="{DynamicResource DangerBrush}"
+                                           FontSize="10.5"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="VAULT FOLDER" Classes="section" FontSize="9.5"/>
+                            <TextBlock Text="{Binding VaultFolder}" Classes="muted" FontSize="11" TextWrapping="Wrap"/>
+                            <TextBlock Text="DATABASE" Classes="section" FontSize="9.5" Margin="0,6,0,0"/>
+                            <TextBlock Text="{Binding DatabaseFile}" Classes="muted" FontSize="11" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ================================================ models -->
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="MODELS" Classes="section"/>
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Embeddings" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="{Binding EmbeddingLabel}" Classes="meta" FontSize="11"/>
+                            <TextBlock Grid.Row="1" Text="Ask" FontSize="12" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding ChatModelLabel}"
+                                       Classes="meta"
+                                       FontSize="11"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+                        <TextBlock Text="Both are configured with environment variables (KAMPF_OLLAMA_URL, KAMPF_EMBEDDING_MODEL, KAMPF_CHAT_MODEL) and run locally; nothing leaves this machine."
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   TextWrapping="Wrap"
+                                   LineHeight="16"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- =============================================== privacy -->
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="PRIVACY" Classes="section"/>
+                        <TextBlock Text="The vault is local-first. Nothing is uploaded, no accounts are created, and no telemetry is sent."
+                                   Classes="meta"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   LineHeight="17"/>
+                        <TextBlock Text="Encryption covers the database: notes, tags, links, highlights, embeddings and chat history. It does not cover the PDFs stored in assets/ — those remain readable files, and backups of the database stay in the form they were taken (a backup of an encrypted vault is itself encrypted)."
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   TextWrapping="Wrap"
+                                   LineHeight="16"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -22,6 +22,7 @@ public enum VaultView
     Editor,
     Reader,
     Chat,
+    Settings,
 }
 
 /// <summary>
@@ -72,6 +73,7 @@ public partial class MainViewModel : ViewModelBase
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
         TagFilters = new ObservableCollection<string> { AllTags };
+        SyncSecurityState();
     }
 
     /// <summary>Set by the view so the view model stays free of window APIs.</summary>
@@ -114,13 +116,228 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _pendingCount;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView), nameof(IsChatView))]
+    [NotifyPropertyChangedFor(nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView), nameof(IsChatView), nameof(IsSettingsView))]
     private VaultView _view = VaultView.Graph;
 
     public bool IsGraphView => View == VaultView.Graph;
     public bool IsEditorView => View == VaultView.Editor;
     public bool IsReaderView => View == VaultView.Reader;
     public bool IsChatView => View == VaultView.Chat;
+    public bool IsSettingsView => View == VaultView.Settings;
+
+    // ---------------------------------------------------------------- settings
+
+    [ObservableProperty] private string _currentPassphrase = string.Empty;
+    [ObservableProperty] private string _newPassphrase = string.Empty;
+    [ObservableProperty] private string _confirmPassphrase = string.Empty;
+    [ObservableProperty] private bool _isSecurityBusy;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EncryptionStatus), nameof(EncryptionHint), nameof(MirrorToggleEnabled), nameof(CanChangePassphrase))]
+    private bool _isVaultEncrypted;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MirrorStatus))]
+    private bool _writeMarkdownMirrors = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSettingsMessage))]
+    private string _settingsMessage = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSettingsError))]
+    private string _settingsError = string.Empty;
+
+    public bool HasSettingsMessage => SettingsMessage.Length > 0;
+    public bool HasSettingsError => SettingsError.Length > 0;
+    public bool CanChangePassphrase => IsVaultEncrypted && !IsSecurityBusy;
+
+    public string EncryptionStatus => IsVaultEncrypted
+        ? "Encrypted at rest \u00b7 SQLCipher (AES-256)"
+        : "Not encrypted \u00b7 plain SQLite file";
+
+    public string EncryptionHint => IsVaultEncrypted
+        ? "Note bodies, highlights and chat history are inside the encrypted database. There is no recovery if the passphrase is lost, so keep it somewhere safe."
+        : "Kampf can encrypt the vault database with a passphrase. The database and its search index are rewritten under SQLCipher; PDFs in assets/ always stay readable on disk.";
+
+    public string MirrorStatus => IsVaultEncrypted
+        ? "Off while the vault is encrypted: a markdown file beside the database would expose note bodies in plaintext."
+        : WriteMarkdownMirrors
+            ? "On: every note is also written to notes/<id>.md so the vault is readable without Kampf."
+            : "Off: notes live only in the database.";
+
+    public bool MirrorToggleEnabled => !IsVaultEncrypted;
+
+    public string VaultFolder => VaultPath;
+    public string DatabaseFile => _vault.DatabasePath;
+    public string NotesFolder => _vault.NotesDirectory;
+    public string EmbeddingLabel =>
+        $"{_vault.Embeddings.Model} \u00b7 similarity floor {_vault.Embeddings.SimilarityFloor:0.00}";
+
+    partial void OnWriteMarkdownMirrorsChanged(bool value)
+    {
+        if (IsVaultEncrypted)
+            return;
+
+        _vault.Repository.WriteMarkdownMirror = value;
+    }
+
+    [RelayCommand]
+    private void ShowSettings()
+    {
+        View = VaultView.Settings;
+        SyncSecurityState();
+        ClearPassphraseFields();
+        SettingsError = string.Empty;
+        SettingsMessage = "";
+    }
+
+    [RelayCommand]
+    private void CloseSettings() => View = VaultView.Graph;
+
+    [RelayCommand]
+    private async Task EnableEncryptionAsync()
+    {
+        if (IsVaultEncrypted || IsSecurityBusy)
+            return;
+
+        if (ValidateNewPassphrase() is { } problem)
+        {
+            SettingsError = problem;
+            return;
+        }
+
+        IsSecurityBusy = true;
+        SettingsError = string.Empty;
+        SettingsMessage = "Encrypting the vault\u2026";
+
+        try
+        {
+            await _vault.EnableEncryptionAsync(NewPassphrase);
+            ClearPassphraseFields();
+            SyncSecurityState();
+            StatusMessage = "Vault encrypted. Plaintext note mirrors were removed; the PDFs in assets/ stay readable.";
+            SettingsMessage = "Encryption is on. Keep the passphrase safe \u2014 without it the vault cannot be opened.";
+        }
+        catch (Exception ex)
+        {
+            SettingsError = "Encryption failed: " + ex.Message;
+            SettingsMessage = string.Empty;
+        }
+        finally
+        {
+            IsSecurityBusy = false;
+            SyncSecurityState();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChangePassphraseAsync()
+    {
+        if (!IsVaultEncrypted || IsSecurityBusy)
+            return;
+
+        if (!_vault.VerifyPassphrase(CurrentPassphrase))
+        {
+            SettingsError = "The current passphrase is not correct.";
+            return;
+        }
+
+        if (ValidateNewPassphrase() is { } problem)
+        {
+            SettingsError = problem;
+            return;
+        }
+
+        IsSecurityBusy = true;
+        SettingsError = string.Empty;
+        SettingsMessage = "Re-encrypting the vault\u2026";
+
+        try
+        {
+            await _vault.ChangePassphraseAsync(NewPassphrase);
+            ClearPassphraseFields();
+            StatusMessage = "Vault passphrase changed.";
+            SettingsMessage = "The vault was re-encrypted under the new passphrase.";
+        }
+        catch (Exception ex)
+        {
+            SettingsError = "Could not change the passphrase: " + ex.Message;
+            SettingsMessage = string.Empty;
+        }
+        finally
+        {
+            IsSecurityBusy = false;
+            SyncSecurityState();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DisableEncryptionAsync()
+    {
+        if (!IsVaultEncrypted || IsSecurityBusy)
+            return;
+
+        if (!_vault.VerifyPassphrase(CurrentPassphrase))
+        {
+            SettingsError = "Enter the vault passphrase to turn encryption off.";
+            return;
+        }
+
+        IsSecurityBusy = true;
+        SettingsError = string.Empty;
+        SettingsMessage = "Decrypting the vault\u2026";
+
+        try
+        {
+            await _vault.DisableEncryptionAsync();
+            ClearPassphraseFields();
+            SyncSecurityState();
+            WriteMarkdownMirrors = _vault.Repository.WriteMarkdownMirror;
+            await RefreshAsync();
+            StatusMessage = "Encryption is off. The database is a plain SQLite file again.";
+            SettingsMessage = "Encryption removed; markdown mirrors were rewritten for every note.";
+        }
+        catch (Exception ex)
+        {
+            SettingsError = "Could not remove encryption: " + ex.Message;
+            SettingsMessage = string.Empty;
+        }
+        finally
+        {
+            IsSecurityBusy = false;
+            SyncSecurityState();
+        }
+    }
+
+    private void SyncSecurityState()
+    {
+        IsVaultEncrypted = _vault.IsEncrypted;
+        WriteMarkdownMirrors = _vault.Repository.WriteMarkdownMirror;
+        OnPropertyChanged(nameof(EncryptionStatus));
+        OnPropertyChanged(nameof(EncryptionHint));
+        OnPropertyChanged(nameof(MirrorStatus));
+        OnPropertyChanged(nameof(MirrorToggleEnabled));
+        OnPropertyChanged(nameof(CanChangePassphrase));
+    }
+
+    private void ClearPassphraseFields()
+    {
+        CurrentPassphrase = string.Empty;
+        NewPassphrase = string.Empty;
+        ConfirmPassphrase = string.Empty;
+    }
+
+    private string? ValidateNewPassphrase()
+    {
+        if (NewPassphrase.Length < 8)
+            return "Use at least 8 characters for the passphrase.";
+
+        if (!string.Equals(NewPassphrase, ConfirmPassphrase, StringComparison.Ordinal))
+            return "The two passphrases do not match.";
+
+        return null;
+    }
 
     // ------------------------------------------------------------- idea-craft
 

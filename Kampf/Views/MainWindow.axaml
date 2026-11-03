@@ -12,5 +12,9 @@
         Title="Kampf"
         Width="1420" Height="900"
         MinWidth="1024" MinHeight="640">
-    <views:MainView x:Name="RootView" />
+    <Panel>
+        <views:MainView x:Name="RootView" />
+        <!-- Shown instead of the shell until an encrypted vault is unlocked. -->
+        <views:UnlockView x:Name="LockView" />
+    </Panel>
 </Window>

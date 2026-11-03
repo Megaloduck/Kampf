@@ -28,12 +28,40 @@ public partial class App : Avalonia.Application
             DisableAvaloniaDataAnnotationValidation();
             var window = new MainWindow();
             desktop.MainWindow = window;
-            _ = OpenVaultAsync(window.SetViewModel, window.ShowFailure);
+
+            // An encrypted vault is gated before the shell is built, so no view
+            // model exists (and no query runs) until the passphrase is accepted.
+            if (Vault.IsEncryptedVault())
+            {
+                window.ShowLockScreen(Vault.DefaultRootPath, async passphrase =>
+                {
+                    var vault = await Vault.OpenAsync(passphrase: passphrase);
+                    await AttachAsync(vault, window.SetViewModel);
+                    window.HideLockScreen();
+                });
+            }
+            else
+            {
+                _ = OpenVaultAsync(window.SetViewModel, window.ShowFailure);
+            }
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
             var view = new MainView();
             singleViewPlatform.MainView = view;
+
+            if (Vault.IsEncryptedVault())
+            {
+                view.Content = new TextBlock
+                {
+                    Text = "This vault is encrypted. Unlocking it is only available in the desktop app for now.",
+                    Margin = new Thickness(24),
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                };
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
             _ = OpenVaultAsync(
                 viewModel => view.DataContext = viewModel,
                 ex => view.Content = new TextBlock
@@ -52,14 +80,19 @@ public partial class App : Avalonia.Application
         try
         {
             var vault = await Vault.OpenAsync();
-            var viewModel = new MainViewModel(vault);
-            apply(viewModel);
-            await viewModel.InitializeAsync();
+            await AttachAsync(vault, apply);
         }
         catch (Exception ex)
         {
             fail(ex);
         }
+    }
+
+    private static async Task AttachAsync(Vault vault, Action<MainViewModel> apply)
+    {
+        var viewModel = new MainViewModel(vault);
+        apply(viewModel);
+        await viewModel.InitializeAsync();
     }
 
     private void DisableAvaloniaDataAnnotationValidation()

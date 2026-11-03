@@ -62,7 +62,16 @@ refused while notes still carry page anchors into it.
 - **Drag and drop** — drop one or more PDFs anywhere on the workspace to import
   them; the cursor shows a copy badge only when the payload contains a `.pdf`.
 - **Markdown files on disk** — every note is mirrored to `vault/notes/{id}.md`
-  with YAML front matter; SQLite is the index, markdown is your data.
+  with YAML front matter; SQLite is the index, markdown is your data. The mirror
+  is a toggle in Settings and switches itself off when the vault is encrypted.
+- **Encrypted vault** — turn encryption on in Settings and the database (notes,
+  tags, links, highlights, embeddings, chat history) is rewritten under
+  SQLCipher with a key derived from your passphrase. On the next launch the app
+  asks for the passphrase before the shell exists; a wrong one is rejected
+  without opening the database.
+- **Settings** — the gear button in the header opens a settings view: theme,
+  vault encryption (enable / change passphrase / turn off), markdown mirror
+  toggle, the active embedding and chat backends, and where the vault lives.
 
 ## Architecture
 
@@ -70,8 +79,8 @@ refused while notes still carry page anchors into it.
 Kampf.Domain          entities, value objects, invariants (no dependencies)
 Kampf.Application     services + ports: notes, import, graph, search, suggestions,
                      embeddings cache, RAG chat
-Kampf.Infrastructure  SQLite/FTS5 repository, markdown mirror, PdfPig extraction,
-                     embeddings (offline hashing or local Ollama)
+Kampf.Infrastructure  SQLite/FTS5 repository, SQLCipher encryption, markdown
+                     mirror, PdfPig extraction, embeddings (hashing or Ollama)
 Kampf                 Avalonia UI: view models, graph canvas, markdown preview
 Kampf.Desktop         desktop host
 tests/*               domain rules, application services, SQLite + PDF round trips
@@ -85,7 +94,7 @@ in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 69 tests across three projects
+dotnet test                      # 76 tests across three projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux; the Android
@@ -98,8 +107,10 @@ Default: `%LOCALAPPDATA%\Kampf` (Windows), `~/.local/share/Kampf` elsewhere.
 ```
 Kampf/
   kampf.db          SQLite index (notes, links, tags, documents, suggestions, audit)
+  vault.lock        present only when encrypted: KDF, salt, verifier (never the key)
   notes/            one markdown file per note, YAML front matter
   assets/           imported PDFs
+  backups/          kampf-<timestamp>.db taken before every encryption change
 ```
 
 Set `KAMPF_VAULT` to use a different folder (portable vault or a second vault).
@@ -149,6 +160,32 @@ query about "community structure". Imported papers are still text-search only
 (they have citation metadata, not note bodies), and semantic hits are capped at
 10 per query.
 
+## Encryption at rest
+
+Settings → *Vault & encryption* → **Encrypt vault** rewrites `kampf.db` through
+SQLCipher's `sqlcipher_export` and drops a `vault.lock` beside it. The key is
+PBKDF2-HMAC-SHA256 (32 bytes, 16-byte salt, 600,000 iterations) over your
+passphrase, applied per connection as `PRAGMA key`. Nothing derived from the
+passphrase is ever stored: `vault.lock` holds only the KDF parameters, the salt
+and an HMAC verifier, which is enough to reject a wrong passphrase before the
+database is opened.
+
+The rewrite is deliberately careful, because a half-encrypted vault is data
+loss: the current database is copied to `backups/kampf-<timestamp>.db` first,
+the exported file's row count must match the source, and only then is it moved
+into place. Turning encryption off reverses it the same way. Markdown mirrors
+are deleted on the way in (they would expose note bodies as plaintext) and
+rebuilt from the database on the way out.
+
+What encryption does **not** cover: PDFs in `assets/` stay readable files, and a
+backup taken while the vault was plaintext stays plaintext. There is no recovery
+path for a forgotten passphrase — that is the point of it, but it means the
+passphrase is the only way back in.
+
+Tests cover the round trip: plaintext bytes are gone from the file after
+encryption, wrong and missing passphrases are rejected, decryption restores a
+readable vault with its mirrors, and changing the passphrase retires the old one.
+
 ## Deliberately deferred
 
 - Rich in-place markdown editing (AvaloniaEdit) — Phase 1 uses a plain editor plus
@@ -163,7 +200,7 @@ query about "community structure". Imported papers are still text-search only
   independently (the transcript is history, not context).
 - Vector search over *documents*: only notes are embedded, so paper text is
   still found by FTS5 alone.
-- Sync, publishing and encryption at rest — Phase 4.
+- Sync and publishing — Phase 4.
 
 ## Icons
 
