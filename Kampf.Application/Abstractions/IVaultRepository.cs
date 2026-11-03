@@ -48,6 +48,10 @@ public interface IVaultRepository
     Task<IReadOnlyList<Suggestion>> ListSuggestionsAsync(SuggestionStatus? status = null, CancellationToken ct = default);
     Task SaveSuggestionAsync(Suggestion suggestion, CancellationToken ct = default);
 
+    // Idea-Craft chat history
+    Task<IReadOnlyList<ChatMessage>> ListChatMessagesAsync(int limit = 200, CancellationToken ct = default);
+    Task SaveChatMessageAsync(ChatMessage message, CancellationToken ct = default);
+
     // Audit trail
     Task<IReadOnlyList<AuditEntry>> ListAuditAsync(int limit = 100, CancellationToken ct = default);
     Task AppendAuditAsync(AuditEntry entry, CancellationToken ct = default);

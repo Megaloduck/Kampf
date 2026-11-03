@@ -1,0 +1,164 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="640"
+             x:Class="Kampf.Views.ChatView"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding IsChatView}">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <Border Grid.Row="0"
+                Padding="20,14,20,12"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Spacing="5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="icon"
+                               FontSize="16"
+                               VerticalAlignment="Center"
+                               Text="{x:Static controls:Symbols.Psychology}"
+                               Foreground="{DynamicResource AccentBrush}"/>
+                    <TextBlock Text="IDEA-CRAFT" Classes="section" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Ask what connects two notes, or what your vault says about a topic. Answers quote the notes and pages they came from; nothing is written to the graph."
+                           Classes="meta"
+                           FontSize="10.5"
+                           TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding ChatModelLabel}" Classes="muted" FontSize="10.5"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding ChatExchanges}" Margin="20,16,20,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ChatExchangeViewModel">
+                        <StackPanel Spacing="10" Margin="0,0,0,20">
+                            <Border Background="{DynamicResource AccentDarkBrush}"
+                                    CornerRadius="9,9,2,9"
+                                    Padding="12,8"
+                                    MaxWidth="560"
+                                    HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding Question}"
+                                           FontSize="12.5"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <Border Background="{DynamicResource PanelAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="9,9,9,2"
+                                    Padding="14,11">
+                                <StackPanel Spacing="9">
+                                    <TextBlock Text="{Binding Answer}"
+                                               FontSize="12.5"
+                                               LineHeight="19.5"
+                                               TextWrapping="Wrap"/>
+
+                                    <ItemsControl ItemsSource="{Binding Citations}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ChatCitationViewModel">
+                                                <Button Classes="link"
+                                                        Margin="0,0,10,4"
+                                                        Padding="0"
+                                                        Command="{Binding OpenCommand}"
+                                                        ToolTip.Tip="{Binding ToolTip}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Classes="icon"
+                                                                   FontSize="13"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="{x:Static controls:Symbols.OpenInNew}"
+                                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="{Binding Warning}"
+                                               IsVisible="{Binding HasWarning}"
+                                               Foreground="{DynamicResource WarnBrush}"
+                                               FontSize="10.5"
+                                               TextWrapping="Wrap"/>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{Binding GroundingLabel}"
+                                                   Classes="meta"
+                                                   FontSize="10"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding TimeLabel}"
+                                                   Classes="meta"
+                                                   FontSize="10"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1"
+                    IsVisible="{Binding !HasChatHistory}"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="8">
+            <TextBlock Classes="icon"
+                       FontSize="40"
+                       HorizontalAlignment="Center"
+                       Text="{x:Static controls:Symbols.Psychology}"
+                       Foreground="{DynamicResource FaintBrush}"/>
+            <TextBlock Text="Nothing asked yet"
+                       FontSize="16"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="Try “What connects X and Y?” or “Summarise what I have on modularity.”"
+                       Classes="muted"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,12">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox x:Name="QuestionBox"
+                             Text="{Binding ChatQuestion, Mode=TwoWay}"
+                             Watermark="Ask the vault a question…"
+                             FontSize="12.5"
+                             Padding="12,8"
+                             KeyDown="OnQuestionKeyDown"/>
+                    <Button Grid.Column="1"
+                            Classes="primary"
+                            Margin="10,0,0,0"
+                            Padding="16,8"
+                            Command="{Binding AskIdeaCraftCommand}"
+                            IsEnabled="{Binding !IsChatting}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.Send}"
+                                       Foreground="{DynamicResource OnAccentBrush}"/>
+                            <TextBlock Text="Ask"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="11"
+                           Foreground="{DynamicResource MutedBrush}"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

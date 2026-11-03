@@ -1,4 +1,5 @@
 using Kampf.Application.Abstractions;
+using Kampf.Infrastructure.Ai;
 using Kampf.Infrastructure.Embeddings;
 using Kampf.Infrastructure.Pdf;
 using Kampf.Infrastructure.Storage;
@@ -23,6 +24,9 @@ public sealed class Vault
     /// <summary>Offline hashing embedder unless a local Ollama model is configured.</summary>
     public IEmbeddingProvider Embeddings { get; }
 
+    /// <summary>Local chat model, or null when none is configured (chat stays extractive).</summary>
+    public IChatModel? Chat { get; }
+
     private Vault(string rootPath)
     {
         RootPath = rootPath;
@@ -34,6 +38,7 @@ public sealed class Vault
         Files = new VaultFileStore(AssetsDirectory);
         PdfExtractor = new PdfPigExtractor();
         Embeddings = EmbeddingProviders.CreateFromEnvironment();
+        Chat = ChatModels.CreateFromEnvironment();
     }
 
     /// <summary>

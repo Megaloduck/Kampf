@@ -16,6 +16,7 @@ public sealed class FakeVaultRepository : IVaultRepository
     public List<Highlight> Highlights { get; } = new();
     public List<Suggestion> Suggestions { get; } = new();
     public List<AuditEntry> Audit { get; } = new();
+    public List<ChatMessage> Chat { get; } = new();
     public Dictionary<string, NoteEmbedding> Embeddings { get; } = new(StringComparer.Ordinal);
 
     public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
@@ -149,6 +150,16 @@ public sealed class FakeVaultRepository : IVaultRepository
             Suggestions[index] = suggestion;
         else
             Suggestions.Add(suggestion);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ChatMessage>> ListChatMessagesAsync(int limit = 200, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ChatMessage>>(
+            Chat.OrderBy(m => m.CreatedAt).Take(limit).ToList());
+
+    public Task SaveChatMessageAsync(ChatMessage message, CancellationToken ct = default)
+    {
+        Chat.Add(message);
         return Task.CompletedTask;
     }
 

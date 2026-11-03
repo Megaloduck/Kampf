@@ -134,6 +134,29 @@ public sealed class VaultRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task Chat_history_round_trips_in_order()
+    {
+        await _repo.InitializeAsync();
+
+        var question = ChatMessage.Create(ChatMessage.UserRole, "What connects X and Y?");
+        var answer = ChatMessage.Create(
+            ChatMessage.AssistantRole,
+            "Both notes discuss modularity [1].",
+            "[{\"noteId\":\"n1\",\"noteTitle\":\"X\"}]");
+
+        await _repo.SaveChatMessageAsync(question);
+        await _repo.SaveChatMessageAsync(answer);
+
+        var messages = await _repo.ListChatMessagesAsync();
+
+        Assert.Equal(2, messages.Count);
+        Assert.True(messages[0].IsUser);
+        Assert.Equal("What connects X and Y?", messages[0].Text);
+        Assert.Equal("Both notes discuss modularity [1].", messages[1].Text);
+        Assert.Contains("\"noteId\":\"n1\"", messages[1].CitationsJson);
+    }
+
+    [Fact]
     public async Task Document_citation_detail_round_trips()
     {
         await _repo.InitializeAsync();

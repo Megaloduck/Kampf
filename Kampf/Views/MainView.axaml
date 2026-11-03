@@ -247,6 +247,17 @@
                                 <TextBlock Text="Reader"/>
                             </StackPanel>
                         </Button>
+                        <Button Classes="nav"
+                                Classes.active="{Binding IsChatView}"
+                                Command="{Binding ShowChatCommand}"
+                                ToolTip.Tip="Idea-Craft: ask your vault a question">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.Psychology}"/>
+                                <TextBlock Text="Idea-Craft"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <TextBlock Grid.Column="1"
@@ -267,6 +278,7 @@
             <views:GraphView Grid.Row="1"/>
             <views:NoteView Grid.Row="1" x:Name="NoteEditor"/>
             <views:ReaderView Grid.Row="1"/>
+            <views:ChatView Grid.Row="1"/>
         </Grid>
 
         <GridSplitter Grid.Row="1" Grid.Column="3"

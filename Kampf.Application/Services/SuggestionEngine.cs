@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Kampf.Application.Abstractions;
 using Kampf.Application.Embeddings;
 using Kampf.Application.Models;
@@ -31,18 +29,17 @@ public sealed class SuggestionEngine
     private const int FullScanLimit = 1500;
 
     private const int BlockedCandidatesPerNote = 24;
-    private const int EmbeddingBatchSize = 32;
 
     /// <summary>Sum of neighbour similarities a tag needs before it is worth proposing.</summary>
     private const float TagWeightFloor = 0.80f;
 
     private readonly IVaultRepository _repo;
-    private readonly IEmbeddingProvider _embeddings;
+    private readonly NoteEmbeddingIndex _index;
 
     public SuggestionEngine(IVaultRepository repo, IEmbeddingProvider embeddings)
     {
         _repo = repo;
-        _embeddings = embeddings;
+        _index = new NoteEmbeddingIndex(repo, embeddings);
     }
 
     public async Task<SuggestionBatch> GenerateAsync(CancellationToken ct = default)
@@ -50,27 +47,28 @@ public sealed class SuggestionEngine
         var allNotes = await _repo.ListNotesAsync(ct);
 
         var notes = new List<Note>(allNotes.Count);
-        var texts = new List<string>(allNotes.Count);
         var shares = new List<IReadOnlyList<string>>(allNotes.Count);
 
         foreach (var note in allNotes)
         {
-            var text = NoteText(note);
-            var tokens = TextTokenizer.DistinctTokens(text);
+            var tokens = TextTokenizer.DistinctTokens(NoteEmbeddingIndex.TextFor(note));
             if (tokens.Count < 3)
                 continue; // titles alone are too thin to connect meaningfully
 
             notes.Add(note);
-            texts.Add(text);
             shares.Add(tokens);
         }
 
         if (notes.Count < 2)
             return new SuggestionBatch(0, 0, notes.Count);
 
-        var vectors = await EnsureEmbeddingsAsync(notes, texts, ct);
+        var byId = await _index.EnsureAsync(
+            notes.Select(n => (n.Id, NoteEmbeddingIndex.TextFor(n))).ToList(),
+            ct);
+        var vectors = notes.Select(n => byId[n.Id]).ToArray();
+
         var pairCandidates = CandidatePairs(shares);
-        var floor = _embeddings.SimilarityFloor;
+        var floor = _index.Provider.SimilarityFloor;
 
         var pairs = new List<(int A, int B, float Similarity)>();
         foreach (var (a, b) in pairCandidates)
@@ -193,52 +191,6 @@ public sealed class SuggestionEngine
 
     // --------------------------------------------------------------- internals
 
-    private async Task<float[][]> EnsureEmbeddingsAsync(
-        IReadOnlyList<Note> notes,
-        IReadOnlyList<string> texts,
-        CancellationToken ct)
-    {
-        var stored = (await _repo.ListEmbeddingsAsync(_embeddings.Model, ct))
-            .Where(e => e.Vector.Length > 0)
-            .ToDictionary(e => e.NoteId, StringComparer.Ordinal);
-
-        var vectors = new float[notes.Count][];
-        var stale = new List<(int Index, string Text, string Hash)>();
-
-        for (var i = 0; i < notes.Count; i++)
-        {
-            var hash = ContentHash(texts[i]);
-            if (stored.TryGetValue(notes[i].Id, out var cached) && cached.ContentHash == hash)
-            {
-                VectorMath.NormalizeInPlace(cached.Vector);
-                vectors[i] = cached.Vector;
-                continue;
-            }
-
-            stale.Add((i, texts[i], hash));
-        }
-
-        foreach (var batch in stale.Chunk(EmbeddingBatchSize))
-        {
-            var embedded = await _embeddings.EmbedAsync(batch.Select(b => b.Text).ToList(), ct);
-            var rows = new List<NoteEmbedding>(batch.Length);
-
-            for (var k = 0; k < batch.Length; k++)
-            {
-                var vector = k < embedded.Count ? embedded[k] : Array.Empty<float>();
-                VectorMath.NormalizeInPlace(vector);
-
-                var (index, _, hash) = batch[k];
-                vectors[index] = vector;
-                rows.Add(new NoteEmbedding(notes[index].Id, _embeddings.Model, hash, vector));
-            }
-
-            await _repo.SaveEmbeddingsAsync(rows, ct);
-        }
-
-        return vectors;
-    }
-
     private static List<(int A, int B)> CandidatePairs(IReadOnlyList<IReadOnlyList<string>> shares)
     {
         var candidates = new List<(int A, int B)>();
@@ -334,11 +286,6 @@ public sealed class SuggestionEngine
             ? $"{percent}% similar"
             : $"{percent}% similar \u00b7 shares \u201c{string.Join("\u201d, \u201c", shared)}\u201d";
     }
-
-    private static string NoteText(Note note) => note.Title + "\n" + note.Body;
-
-    private static string ContentHash(string text) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
     private static (string, string) PairKey(string a, string b) =>
         string.CompareOrdinal(a, b) <= 0 ? (a, b) : (b, a);

@@ -25,8 +25,19 @@ This repository implements the **Phase 1 MVP** from `Plan_Kampf.pdf`.
   colour = primary tag, edge colour = why the edge exists (written link vs.
   accepted suggestion vs. provenance). Click to inspect, double-click to open,
   drag to arrange, scroll to zoom. Filter by source type or tag.
-- **Full-text search** — SQLite FTS5 over note bodies (with a `LIKE` fallback),
-  plus `tag:name` filtering.
+- **Idea-Craft chat** — a fourth workspace tab: ask "what connects X and Y?" and
+  get an answer built only from retrieved notes, with clickable citations
+  (note title, source paper, page). With a local model configured the answer is
+  prose that must cite `[n]`; with none, the answer *is* the cited passages — it
+  never synthesises. A model answer with no valid citation is labelled
+  unverified, and an unreachable model falls back to the passages with a
+  warning. Every turn is stored in `chat_messages` and restored on restart.
+- **Hybrid search** — SQLite FTS5 over note bodies (with a `LIKE` fallback) plus
+  `tag:name` filtering, then a semantic pass: notes whose cached vector is close
+  to the query vector are appended even when they never use the query's words.
+  Exact-term hits always stay first; the header and status line report how many
+  results came "by meaning", and a stopped local model degrades to text-only
+  with a warning instead of failing the search.
 - **Review queue** — every proposal shows its reason and does nothing until you
   accept or reject it. Decisions are written to an activity log.
 - **Find connections** — a button in the review panel runs the Phase 2 suggestion
@@ -57,7 +68,8 @@ refused while notes still carry page anchors into it.
 
 ```
 Kampf.Domain          entities, value objects, invariants (no dependencies)
-Kampf.Application     services + ports: notes, import, graph, search, suggestions
+Kampf.Application     services + ports: notes, import, graph, search, suggestions,
+                     embeddings cache, RAG chat
 Kampf.Infrastructure  SQLite/FTS5 repository, markdown mirror, PdfPig extraction,
                      embeddings (offline hashing or local Ollama)
 Kampf                 Avalonia UI: view models, graph canvas, markdown preview
@@ -73,7 +85,7 @@ in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 57 tests across three projects
+dotnet test                      # 69 tests across three projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux; the Android
@@ -116,6 +128,11 @@ the gate that applies them. Two embedding backends implement the same port:
 | `kampf-hash-512` | default | Dependency-free signed feature hashing over words and word pairs. Lexical overlap, works offline, no model to install. |
 | `ollama:<model>` | `KAMPF_OLLAMA_URL` + `KAMPF_EMBEDDING_MODEL` are set | Semantic vectors from a local Ollama server, e.g. `http://localhost:11434` with `nomic-embed-text`. |
 
+The chat model is separate: set `KAMPF_OLLAMA_URL` + `KAMPF_CHAT_MODEL` (e.g.
+`llama3.2`) and Idea-Craft answers with prose that cites the numbered sources it
+was given. Leave it unset and the same retrieval runs, but the answer is the
+passages themselves. Either way nothing is sent to a hosted API.
+
 Each backend publishes its own similarity floor, because lexical and semantic
 cosines do not live on the same scale. Vectors are stored in `note_embeddings`
 tagged with the model: switching models re-embeds instead of comparing mixed
@@ -126,15 +143,26 @@ blocked by shared significant words so a large vault stays responsive. A run is
 capped (40 links, 20 tags), and every harvested pair is remembered — accepted,
 pending or rejected — so the queue never nags about the same thing twice.
 
+The same cache powers search: `SearchService` embeds the query and compares it
+with the stored note vectors, so a note that says "modularity" is found by a
+query about "community structure". Imported papers are still text-search only
+(they have citation metadata, not note bodies), and semantic hits are capped at
+10 per query.
+
 ## Deliberately deferred
 
 - Rich in-place markdown editing (AvaloniaEdit) — Phase 1 uses a plain editor plus
   a rendered preview.
 - Visual PDF page rendering (WebView + PDF.js) — Phase 1 shows extracted page text
   with selectable ranges for highlight-to-note.
-- The RAG chatbot (ChatService), semantic *search* over the vault, LLM summaries
-  and cross-paper synthesis — the embedding pipeline built here is the base they
-  will sit on.
+- LLM summaries, cross-paper synthesis, and links proposed *by the chatbot* —
+  chat currently cites notes, it does not write suggestions into the queue.
+- Answers are grounded in **notes**, not raw paper text: a question about a
+  paragraph you never highlighted will not find it.
+- Streaming chat output and multi-turn memory: each question is answered
+  independently (the transcript is history, not context).
+- Vector search over *documents*: only notes are embedded, so paper text is
+  still found by FTS5 alone.
 - Sync, publishing and encryption at rest — Phase 4.
 
 ## Icons

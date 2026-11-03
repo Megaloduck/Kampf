@@ -126,6 +126,14 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 detail TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id             TEXT PRIMARY KEY,
+                role           TEXT NOT NULL,
+                text           TEXT NOT NULL,
+                citations_json TEXT NULL,
+                created_at     TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS note_embeddings (
                 note_id      TEXT PRIMARY KEY,
                 model        TEXT NOT NULL,
@@ -141,6 +149,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             CREATE INDEX IF NOT EXISTS ix_highlights_document ON highlights (document_id);
             CREATE INDEX IF NOT EXISTS ix_suggestions_status ON suggestions (status);
             CREATE INDEX IF NOT EXISTS ix_note_embeddings_model ON note_embeddings (model);
+            CREATE INDEX IF NOT EXISTS ix_chat_messages_created ON chat_messages (created_at);
             """, ct);
 
         await EnsureDocumentDetailColumnsAsync(connection, ct);
@@ -743,6 +752,62 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.Parameters.AddWithValue("$status", (int)suggestion.Status);
             command.Parameters.AddWithValue("$created", ToDb(suggestion.CreatedAt));
             command.Parameters.AddWithValue("$decided", suggestion.DecidedAt is null ? DBNull.Value : ToDb(suggestion.DecidedAt.Value));
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    // ------------------------------------------------------------------ chat
+
+    public async Task<IReadOnlyList<ChatMessage>> ListChatMessagesAsync(
+        int limit = 200,
+        CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, role, text, citations_json, created_at
+            FROM chat_messages ORDER BY created_at DESC LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$limit", limit);
+
+        var messages = new List<ChatMessage>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            messages.Add(new ChatMessage
+            {
+                Id = reader.GetString(0),
+                Role = reader.GetString(1),
+                Text = reader.GetString(2),
+                CitationsJson = reader.IsDBNull(3) ? null : reader.GetString(3),
+                CreatedAt = FromDb(reader.GetString(4)),
+            });
+        }
+
+        messages.Reverse(); // newest-first query, chronological result
+        return messages;
+    }
+
+    public async Task SaveChatMessageAsync(ChatMessage message, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO chat_messages (id, role, text, citations_json, created_at)
+                VALUES ($id, $role, $text, $citations, $created);
+                """;
+            command.Parameters.AddWithValue("$id", message.Id);
+            command.Parameters.AddWithValue("$role", message.Role);
+            command.Parameters.AddWithValue("$text", message.Text);
+            command.Parameters.AddWithValue("$citations", (object?)message.CitationsJson ?? DBNull.Value);
+            command.Parameters.AddWithValue("$created", ToDb(message.CreatedAt));
             await command.ExecuteNonQueryAsync(ct);
         }
         finally

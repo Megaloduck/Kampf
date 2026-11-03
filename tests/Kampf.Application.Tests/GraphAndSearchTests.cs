@@ -59,8 +59,8 @@ public class GraphAndSearchTests
 
         var filtered = await search.SearchAsync("modularity tag:networks");
 
-        Assert.Single(filtered);
-        Assert.Equal(tagged.Id, filtered[0].Id);
+        Assert.Single(filtered.Hits);
+        Assert.Equal(tagged.Id, filtered.Hits[0].Id);
     }
 
     [Fact]

@@ -21,6 +21,7 @@ public enum VaultView
     Graph,
     Editor,
     Reader,
+    Chat,
 }
 
 /// <summary>
@@ -41,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly SearchService _searchService;
     private readonly SuggestionService _suggestionService;
     private readonly SuggestionEngine _suggestionEngine;
+    private readonly ChatService _chatService;
     private readonly Dictionary<string, IReadOnlyList<PageViewModel>> _pageCache = new(StringComparer.Ordinal);
 
     private List<Note> _allNotes = new();
@@ -60,9 +62,12 @@ public partial class MainViewModel : ViewModelBase
         _noteService = new NoteService(vault.Repository);
         _importService = new ImportService(vault.Repository, vault.PdfExtractor, vault.Files);
         _graphService = new GraphService(vault.Repository);
-        _searchService = new SearchService(vault.Repository);
+        _searchService = new SearchService(
+            vault.Repository,
+            new NoteEmbeddingIndex(vault.Repository, vault.Embeddings));
         _suggestionService = new SuggestionService(vault.Repository, _noteService);
         _suggestionEngine = new SuggestionEngine(vault.Repository, vault.Embeddings);
+        _chatService = new ChatService(vault.Repository, _searchService, vault.Chat);
 
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
@@ -81,6 +86,7 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<PageViewModel> Pages { get; } = new();
     public ObservableCollection<NoteRowViewModel> AnchoredNotes { get; } = new();
     public ObservableCollection<MetadataRowViewModel> ReaderDetails { get; } = new();
+    public ObservableCollection<ChatExchangeViewModel> ChatExchanges { get; } = new();
     public ObservableCollection<string> SourceFilters { get; }
     public ObservableCollection<string> TagFilters { get; }
 
@@ -108,12 +114,23 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _pendingCount;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView))]
+    [NotifyPropertyChangedFor(nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView), nameof(IsChatView))]
     private VaultView _view = VaultView.Graph;
 
     public bool IsGraphView => View == VaultView.Graph;
     public bool IsEditorView => View == VaultView.Editor;
     public bool IsReaderView => View == VaultView.Reader;
+    public bool IsChatView => View == VaultView.Chat;
+
+    // ------------------------------------------------------------- idea-craft
+
+    [ObservableProperty] private string _chatQuestion = string.Empty;
+    [ObservableProperty] private bool _isChatting;
+    [ObservableProperty] private bool _hasChatHistory;
+
+    /// <summary>Which backend answers: a local model, or cited passages only.</summary>
+    public string ChatModelLabel => _chatService.ModelLabel;
+    public bool HasLocalChatModel => _chatService.HasLocalModel;
 
     // ------------------------------------------------------------ sidebar state
 
@@ -222,6 +239,7 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             await RefreshAsync();
+            await ReloadChatAsync();
             View = VaultView.Graph;
             StatusMessage = _allNotes.Count == 0 && _allDocuments.Count == 0
                 ? "Empty vault \u2014 import a PDF or create your first note."
@@ -283,6 +301,40 @@ public partial class MainViewModel : ViewModelBase
             Documents.Add(new DocumentRowViewModel(document, anchoredCounts.GetValueOrDefault(document.Id)));
 
         _suppressSelection = false;
+    }
+
+    /// <summary>Rebuilds the Idea-Craft transcript from the stored turns.</summary>
+    private async Task ReloadChatAsync()
+    {
+        var messages = await _chatService.HistoryAsync();
+        ChatExchanges.Clear();
+
+        string? pendingQuestion = null;
+        foreach (var message in messages)
+        {
+            if (message.IsUser)
+            {
+                pendingQuestion = message.Text;
+                continue;
+            }
+
+            if (pendingQuestion is null)
+                continue;
+
+            var citations = SuggestionJson.Deserialize<List<ChatCitation>>(message.CitationsJson ?? "[]")
+                            ?? new List<ChatCitation>();
+
+            ChatExchanges.Add(new ChatExchangeViewModel(
+                pendingQuestion,
+                message.Text,
+                citations.Select(c => new ChatCitationViewModel(c, OpenChatNoteAsync)).ToList(),
+                message.CreatedAt,
+                warning: null));
+
+            pendingQuestion = null;
+        }
+
+        HasChatHistory = ChatExchanges.Count > 0;
     }
 
     private async Task ReloadReviewAsync()
@@ -596,7 +648,8 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var hits = await _searchService.SearchAsync(query);
+            var outcome = await _searchService.SearchAsync(query);
+            var hits = outcome.Hits;
             var noteOrder = hits.Where(h => h.Kind == "note").Select(h => h.Id).ToList();
             var documentOrder = hits.Where(h => h.Kind == "document").Select(h => h.Id).ToList();
 
@@ -629,10 +682,16 @@ public partial class MainViewModel : ViewModelBase
             _suppressSelection = false;
 
             HasSearchResults = true;
-            ListHeader = $"RESULTS \u00b7 {hits.Count}";
+            ListHeader = $"RESULTS \u00b7 {hits.Count}" +
+                         (outcome.SemanticOnly > 0 ? $" \u00b7 {outcome.SemanticOnly} by meaning" : string.Empty);
+            var meaning = outcome.SemanticOnly > 0
+                ? $" \u00b7 {outcome.SemanticOnly} by meaning"
+                : string.Empty;
+            var warning = outcome.Warning is null ? string.Empty : $" \u00b7 {outcome.Warning}";
+
             StatusMessage = hits.Count == 0
                 ? $"No matches for \u201c{query}\u201d."
-                : $"{hits.Count} result(s) for \u201c{query}\u201d.";
+                : $"{hits.Count} result(s) for \u201c{query}\u201d{meaning}{warning}.";
         }
         catch (Exception ex)
         {
@@ -650,6 +709,53 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void ShowGraph() => View = VaultView.Graph;
+
+    [RelayCommand]
+    private void ShowChat() => View = VaultView.Chat;
+
+    /// <summary>
+    /// Asks Idea-Craft a question. The answer is retrieval plus, when configured,
+    /// a local model; either way it carries the notes and pages behind it.
+    /// </summary>
+    [RelayCommand]
+    private async Task AskIdeaCraftAsync()
+    {
+        var question = ChatQuestion.Trim();
+        if (question.Length == 0 || IsChatting)
+            return;
+
+        IsChatting = true;
+        try
+        {
+            var answer = await _chatService.AskAsync(question);
+            ChatQuestion = string.Empty;
+            await ReloadChatAsync();
+            View = VaultView.Chat;
+
+            StatusMessage = answer.Citations.Count == 0
+                ? "Idea-Craft found nothing to cite \u2014 it says so instead of guessing."
+                : $"Answer built from {answer.Citations.Count} source(s)" +
+                  (answer.UsedLocalModel ? "." : " \u2014 no local model configured, so the passages are the answer.");
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Idea-Craft failed: " + ex.Message;
+        }
+        finally
+        {
+            IsChatting = false;
+        }
+    }
+
+    /// <summary>A citation opens the note it points at, so the claim can be checked.</summary>
+    private async Task OpenChatNoteAsync(string noteId)
+    {
+        if (Notes.All(n => n.Note.Id != noteId))
+            await RefreshAsync();
+
+        SelectNoteById(noteId);
+        View = VaultView.Editor;
+    }
 
     [RelayCommand]
     private void ShowEditor()
