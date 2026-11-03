@@ -17,66 +17,69 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <UserControl.Styles>
+        <!-- Page card: consistent radius, subtle hover lift on the whole card. -->
+        <Style Selector="Border.page">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="18,14"/>
+            <Setter Property="Margin" Value="0,0,10,10"/>
+        </Style>
+
+        <!-- Info toggle: same visual language as NoteView's preview toggle. -->
+        <Style Selector="ToggleButton.info">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="ToggleButton.info:checked">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.info:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
     <!-- Paper reader: metadata, extracted pages and their anchored notes. -->
     <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ============ HEADER ============ -->
         <Border Grid.Row="0"
-                Padding="20,14"
+                Padding="24,16,24,14"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="4">
+                <StackPanel Spacing="6">
                     <TextBlock Text="{Binding ReaderTitle}"
                                FontSize="18"
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"/>
                     <TextBlock Text="{Binding ReaderCitation}"
-                               Classes="meta"/>
-                    <ItemsControl ItemsSource="{Binding ReaderDetails}"
-                                  Margin="0,4,0,0">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="2"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:MetadataRowViewModel">
-                                <Grid ColumnDefinitions="Auto,*" Margin="0,1,18,1">
-                                    <TextBlock Text="{Binding Label}"
-                                               Classes="meta"
-                                               FontSize="10.5"
-                                               Width="76"
-                                               VerticalAlignment="Top"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Value}"
-                                               FontSize="11.5"
-                                               TextWrapping="Wrap"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Spacing="2"
-                                Margin="0,6,0,0"
-                                IsVisible="{Binding HasReaderAbstract}">
-                        <TextBlock Text="ABSTRACT" Classes="section" FontSize="9.5"/>
-                        <TextBlock Text="{Binding ReaderAbstract}"
-                                   Classes="muted"
-                                   FontSize="11.5"
-                                   TextWrapping="Wrap"
-                                   MaxLines="4"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                </StackPanel>
-
+                               Classes="meta"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding ReaderCitation}"/>
+                    
+                <!-- Action group: info toggle + destructive action, pinned top-right. -->
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             Spacing="8"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="Click twice to confirm"
-                               Classes="meta"
-                               FontSize="10.5"
-                               VerticalAlignment="Center"
-                               IsVisible="{Binding ConfirmDeleteDocument}"/>
+                            VerticalAlignment="Top">
+                    <ToggleButton x:Name="InfoToggle"
+                                  Classes="info"
+                                  IsChecked="True"
+                                  ToolTip.Tip="Show or hide paper details">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.Visibility}"/>
+                            <TextBlock Text="Info"/>
+                        </StackPanel>
+                    </ToggleButton>
+
                     <Button Classes="ghost danger"
                             Command="{Binding DeleteDocumentCommand}"
                             IsEnabled="{Binding HasSelectedDocument}"
@@ -89,22 +92,75 @@
                             <TextBlock Text="Delete paper"/>
                         </StackPanel>
                     </Button>
+                    <TextBlock Text="Click twice to confirm"
+                               Classes="meta"
+                               FontSize="10.5"
+                               Foreground="{DynamicResource WarnBrush}"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding ConfirmDeleteDocument}"/>
+                </StackPanel>
+
+                    <!-- Collapsible metadata block: citation, details, abstract. -->
+                    <StackPanel Spacing="6" IsVisible="{Binding #InfoToggle.IsChecked}">
+                        <ItemsControl ItemsSource="{Binding ReaderDetails}"
+                                      Margin="0,6,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MetadataRowViewModel">
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,18,2">
+                                        <TextBlock Text="{Binding Label}"
+                                                   Classes="meta"
+                                                   FontSize="10.5"
+                                                   Width="76"
+                                                   VerticalAlignment="Top"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Value}"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Margin="0,6,0,0"
+                                Padding="12,8"
+                                CornerRadius="6"
+                                Background="{DynamicResource AccentDarkBrush}"
+                                IsVisible="{Binding HasReaderAbstract}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="ABSTRACT"
+                                           Classes="section"
+                                           FontSize="9.5"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="{Binding ReaderAbstract}"
+                                           Classes="muted"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           MaxLines="4"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding ReaderAbstract}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="2*,*" Margin="16,12">
+        <!-- ============ BODY: pages + anchored notes ============ -->
+        <Grid Grid.Row="1" ColumnDefinitions="2*,*" Margin="20,14">
+
+            <!-- Pages column -->
             <ScrollViewer Grid.Column="0">
                 <ItemsControl ItemsSource="{Binding Pages}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:PageViewModel">
-                            <Border Background="{DynamicResource PanelBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16,12"
-                                    Margin="0,0,10,10">
-                                <StackPanel Spacing="8">
+                            <Border Classes="page">
+                                <StackPanel Spacing="10">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Text="{Binding HeaderLabel}"
                                                    Classes="section"
@@ -112,6 +168,7 @@
                                         <Button Grid.Column="1"
                                                 Classes="ghost"
                                                 FontSize="11"
+                                                Padding="8,4"
                                                 Click="OnCapturePageClick"
                                                 ToolTip.Tip="Turn the selected text into an anchored note">
                                             <StackPanel Orientation="Horizontal" Spacing="5">
@@ -125,7 +182,7 @@
                                     <SelectableTextBlock Text="{Binding Text}"
                                                          TextWrapping="Wrap"
                                                          FontSize="13"
-                                                         LineHeight="20"
+                                                         LineHeight="21"
                                                          Foreground="{DynamicResource TextBrush}"
                                                          PointerReleased="OnPageTextPointerReleased"/>
                                 </StackPanel>
@@ -135,14 +192,15 @@
                 </ItemsControl>
             </ScrollViewer>
 
+            <!-- Anchored notes column -->
             <Border Grid.Column="1"
                     Background="{DynamicResource PanelBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="14">
+                    Padding="16">
                 <Grid RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,8">
+                    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
                         <TextBlock Text="ANCHORED NOTES" Classes="section"/>
                         <TextBlock Text="Every note here keeps the page it came from."
                                    Classes="meta"
@@ -152,19 +210,24 @@
                     <ListBox Grid.Row="1"
                              ItemsSource="{Binding AnchoredNotes}"
                              SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                             ItemTemplate="{StaticResource NoteRowTemplate}"/>
+                             ItemTemplate="{StaticResource NoteRowTemplate}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"/>
                 </Grid>
             </Border>
         </Grid>
 
+        <!-- ============ STATUS BAR ============ -->
         <Border Grid.Row="2"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0"
-                Padding="20,8">
+                Padding="24,8">
             <TextBlock Text="{Binding StatusMessage}"
                        FontSize="11.5"
                        Foreground="{DynamicResource MutedBrush}"
-                       TextTrimming="CharacterEllipsis"/>
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"/>
         </Border>
     </Grid>
 </UserControl>

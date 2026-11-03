@@ -15,6 +15,7 @@
             <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
         </Style>
         <Style Selector="ToggleButton.preview:checked">
             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
@@ -22,108 +23,157 @@
         <Style Selector="ToggleButton.preview:checked /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
         </Style>
+
+        <!-- Editor body: keep the caret and selection readable, and give focus a subtle ring. -->
+        <Style Selector="TextBox.body">
+            <Setter Property="FontFamily" Value="Consolas, Menlo, monospace"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="21"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="TextBox.body:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+
+        <!-- Title box: strip chrome, keep focus feedback subtle. -->
+        <Style Selector="TextBox.title">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="TextBox.title:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+
+        <!-- Unsaved dot: small, non-intrusive, animated fade-in. -->
+        <Style Selector="TextBlock.dirty">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="10,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource WarnBrush}"/>
+        </Style>
     </UserControl.Styles>
 
-    <!-- Note workspace: title, tags and one body pane shared by editor and preview. -->
+    <!-- Note workspace: title, tags and one body panel shared by editor and preview. -->
     <Grid RowDefinitions="Auto,Auto,*,Auto">
 
+        <!-- ============ HEADER ============ -->
         <Border Grid.Row="0"
-                Padding="20,14,20,10"
+                Padding="24,16,24,12"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                    <TextBox Text="{Binding EditorTitle, Mode=TwoWay}"
-                             FontSize="20"
-                             FontWeight="SemiBold"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Padding="0"
-                             Watermark="Note title"/>
-                    <TextBlock Grid.Column="1"
-                               Text="● unsaved"
-                               Foreground="{DynamicResource WarnBrush}"
-                               FontSize="11"
-                               VerticalAlignment="Center"
-                               Margin="10,0"
-                               IsVisible="{Binding IsDirty}"/>
-                    <Button Grid.Column="2"
-                            Classes="primary"
-                            Command="{Binding SaveNoteCommand}"
-                            IsEnabled="{Binding HasActiveNote}"
-                            ToolTip.Tip="Save note">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Classes="icon"
-                                       FontSize="16"
-                                       Text="{x:Static controls:Symbols.Save}"
-                                       Foreground="{DynamicResource OnAccentBrush}"/>
-                            <TextBlock Text="Save"/>
-                        </StackPanel>
-                    </Button>
-                    <StackPanel Grid.Column="3"
+            <StackPanel Spacing="8">
+                <!-- Title row: title + dirty indicator + primary actions -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Classes="title"
+                                 Text="{Binding EditorTitle, Mode=TwoWay}"
+                                 Watermark="Untitled note"/>
+                        <TextBlock Grid.Column="1"
+                                   Classes="dirty"
+                                   Text="● unsaved"
+                                   IsVisible="{Binding IsDirty}"
+                                   ToolTip.Tip="Changes not yet saved"/>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1"
                                 Orientation="Horizontal"
                                 Spacing="8"
-                                Margin="10,0,0,0"
-                                VerticalAlignment="Center">
-                        <TextBlock Text="Click twice to confirm"
-                                   Classes="meta"
-                                   FontSize="10.5"
-                                   VerticalAlignment="Center"
-                                   IsVisible="{Binding ConfirmDelete}"/>
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <!-- Open source: secondary action, sits beside Save so it's
+                             discoverable in the same action group. -->
+                        <Button Classes="ghost"
+                                Command="{Binding OpenSourceCommand}"
+                                IsVisible="{Binding CanOpenSource}"
+                                ToolTip.Tip="Open the source paper">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.OpenInNew}"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="Open source"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="primary"
+                                Command="{Binding SaveNoteCommand}"
+                                IsEnabled="{Binding HasActiveNote}"
+                                ToolTip.Tip="Save note (Ctrl+S)">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="16"
+                                           Text="{x:Static controls:Symbols.Save}"
+                                           Foreground="{DynamicResource OnAccentBrush}"/>
+                                <TextBlock Text="Save"/>
+                            </StackPanel>
+                        </Button>
+
                         <Button Classes="ghost danger"
                                 Command="{Binding DeleteNoteCommand}"
                                 IsVisible="{Binding HasActiveNote}"
-                                ToolTip.Tip="Delete this note">
+                                ToolTip.Tip="Delete this note (click twice to confirm)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Classes="icon"
                                            FontSize="16"
                                            Text="{x:Static controls:Symbols.Delete}"
                                            Foreground="{DynamicResource DangerBrush}"/>
-                                <TextBlock Text="Delete note"/>
+                                <TextBlock Text="Delete"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="{Binding ProvenanceText}"
-                                   Classes="meta"
-                                   VerticalAlignment="Center"/>
-                        <Button Classes="link"
-                                Command="{Binding OpenSourceCommand}"
-                                IsVisible="{Binding CanOpenSource}"
-                                ToolTip.Tip="Open the source paper">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="Open source"/>
-                                <TextBlock Classes="icon"
-                                           FontSize="13"
-                                           Text="{x:Static controls:Symbols.OpenInNew}"
-                                           Foreground="{DynamicResource AccentBrush}"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
+                <!-- Confirmation hint: pull it out of the button row so it doesn't shift layout. -->
+                <TextBlock Text="Click Delete again to confirm"
+                           Classes="meta"
+                           FontSize="10.5"
+                           Foreground="{DynamicResource WarnBrush}"
+                           IsVisible="{Binding ConfirmDelete}"/>
+
+                <!-- Provenance row: citation on the left, editor bookkeeping on the right.
+                     "Open source" now lives in the header action group above. -->
+                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ProvenanceText}"
+                               Classes="meta"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding ProvenanceText}"/>
                     <TextBlock Grid.Column="1"
                                Text="{Binding EditorMeta}"
-                               Classes="meta"/>
+                               Classes="meta"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               Margin="14,0,0,0"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding EditorMeta}"/>
                 </Grid>
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Padding="20,8" IsVisible="{Binding HasActiveNote}">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+        <!-- ============ TAGS + PREVIEW TOGGLE ============ -->
+        <Border Grid.Row="1" Padding="24,10" IsVisible="{Binding HasActiveNote}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                 <TextBlock Text="TAGS" Classes="section" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1"
                          Text="{Binding EditorTags, Mode=TwoWay}"
                          Watermark="methods, graph-theory (comma separated)"
-                         Width="380"
                          FontSize="11.5"
-                         Margin="10,0,0,0"/>
+                         Margin="10,0,0,0"
+                         CornerRadius="6"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding BacklinksText}"
                            Classes="meta"
                            VerticalAlignment="Center"
-                           Margin="14,0,0,0"/>
+                           Margin="14,0"
+                           TextTrimming="CharacterEllipsis"/>
                 <ToggleButton Grid.Column="3"
                               x:Name="PreviewToggle"
                               Classes="preview"
@@ -140,17 +190,12 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2" Margin="20,8,20,12">
+        <!-- ============ BODY (editor / preview) ============ -->
+        <Grid Grid.Row="2" Margin="24,8,24,16">
             <TextBox x:Name="BodyEditor"
+                     Classes="body"
                      Text="{Binding EditorBody, Mode=TwoWay}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     FontFamily="Consolas, Menlo, monospace"
-                     FontSize="13"
-                     LineHeight="21"
-                     VerticalContentAlignment="Top"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     Padding="14"
                      Watermark="Write markdown. Use [[Another Note]] to connect ideas."/>
 
             <Border x:Name="PreviewPane"
@@ -159,31 +204,34 @@
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="18,14">
+                    Padding="20,16">
                 <ScrollViewer>
                     <ContentControl x:Name="PreviewHost"/>
                 </ScrollViewer>
             </Border>
         </Grid>
 
+        <!-- ============ EMPTY STATE ============ -->
         <Border Grid.Row="2"
                 IsVisible="{Binding !HasActiveNote}"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Center">
-            <StackPanel Spacing="8" HorizontalAlignment="Center">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
                 <TextBlock Classes="icon"
-                           FontSize="40"
+                           FontSize="44"
                            HorizontalAlignment="Center"
                            Text="{x:Static controls:Symbols.Notes}"
                            Foreground="{DynamicResource FaintBrush}"/>
                 <TextBlock Text="No note selected"
                            FontSize="16"
+                           FontWeight="SemiBold"
                            HorizontalAlignment="Center"/>
-                <TextBlock Text="Pick a note on the left or create a new one."
+                <TextBlock Text="Pick a note on the left, or create a new one."
                            Classes="muted"
                            HorizontalAlignment="Center"/>
                 <Button Classes="primary"
                         HorizontalAlignment="Center"
+                        Margin="0,8,0,0"
                         Command="{Binding NewNoteCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Classes="icon"
@@ -196,10 +244,11 @@
             </StackPanel>
         </Border>
 
+        <!-- ============ STATUS BAR ============ -->
         <Border Grid.Row="3"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0"
-                Padding="20,8">
+                Padding="24,8">
             <TextBlock Text="{Binding StatusMessage}"
                        FontSize="11.5"
                        Foreground="{DynamicResource MutedBrush}"

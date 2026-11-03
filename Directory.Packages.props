@@ -17,7 +17,9 @@
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.3.2" />
 
         <!-- Storage / import -->
-        <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+        <!-- Core provider plus SQLCipher: the vault database is encrypted at rest. -->
+        <PackageVersion Include="Microsoft.Data.Sqlite.Core" Version="9.0.0" />
+        <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.10" />
         <PackageVersion Include="PdfPig" Version="0.1.9" />
 
         <!-- Tests -->
