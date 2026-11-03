@@ -25,6 +25,8 @@ public static class Symbols
     public const string Undo = "\uE166";
     public const string Redo = "\uE15A";
     public const string Notes = "\uE26C";
+    public const string Visibility = "\uE8F4";
+    public const string VisibilityOff = "\uE8F5";
     public const string LeftPanelClose = "\uF717";
     public const string LeftPanelOpen = "\uF716";
     public const string RightPanelClose = "\uF705";

@@ -1,12 +1,13 @@
 using System;
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Kampf.Controls;
 using Kampf.ViewModels;
 
 namespace Kampf.Views;
 
-/// <summary>The note workspace: title, tags, markdown editor and live preview.</summary>
+/// <summary>The note workspace: title, tags and one body pane shared by editor and preview.</summary>
 public partial class NoteView : UserControl
 {
     private MainViewModel? _bound;
@@ -20,6 +21,8 @@ public partial class NoteView : UserControl
 
         BodyEditor.TextChanged += (_, _) => RaiseHistoryChanged();
         DataContextChanged += OnDataContextChanged;
+
+        UpdateBodyPane();
     }
 
     /// <summary>Raised whenever the editor's undo history changes.</summary>
@@ -86,6 +89,17 @@ public partial class NoteView : UserControl
         PreviewHost.Content = MarkdownPreview.Build(
             viewModel.EditorBody,
             target => _ = viewModel.OpenWikiLinkAsync(target));
+    }
+
+    private void OnPreviewToggleChanged(object? sender, RoutedEventArgs e) => UpdateBodyPane();
+
+    /// <summary>The body is one pane: the toggle swaps the editor for the preview.</summary>
+    private void UpdateBodyPane()
+    {
+        var showPreview = PreviewToggle.IsChecked == true;
+
+        BodyEditor.IsVisible = !showPreview;
+        PreviewPane.IsVisible = showPreview;
     }
 
     private void RaiseHistoryChanged() => HistoryChanged?.Invoke(this, EventArgs.Empty);

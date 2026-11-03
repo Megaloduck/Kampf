@@ -9,7 +9,22 @@
              x:DataType="vm:MainViewModel"
              IsVisible="{Binding IsEditorView}">
 
-    <!-- Note workspace: title, tags, markdown editor and live preview. -->
+    <UserControl.Styles>
+        <Style Selector="ToggleButton.preview">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.preview:checked">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.preview:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Note workspace: title, tags and one body pane shared by editor and preview. -->
     <Grid RowDefinitions="Auto,Auto,*,Auto">
 
         <Border Grid.Row="0"
@@ -96,22 +111,37 @@
         </Border>
 
         <Border Grid.Row="1" Padding="20,8" IsVisible="{Binding HasActiveNote}">
-            <StackPanel Orientation="Horizontal" Spacing="10">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                 <TextBlock Text="TAGS" Classes="section" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding EditorTags, Mode=TwoWay}"
+                <TextBox Grid.Column="1"
+                         Text="{Binding EditorTags, Mode=TwoWay}"
                          Watermark="methods, graph-theory (comma separated)"
                          Width="380"
-                         FontSize="11.5"/>
-                <TextBlock Text="{Binding BacklinksText}"
+                         FontSize="11.5"
+                         Margin="10,0,0,0"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding BacklinksText}"
                            Classes="meta"
                            VerticalAlignment="Center"
-                           Margin="10,0,0,0"/>
-            </StackPanel>
+                           Margin="14,0,0,0"/>
+                <ToggleButton Grid.Column="3"
+                              x:Name="PreviewToggle"
+                              Classes="preview"
+                              IsChecked="False"
+                              IsCheckedChanged="OnPreviewToggleChanged"
+                              ToolTip.Tip="Switch the note body between the editor and the rendered markdown">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="icon"
+                                   FontSize="15"
+                                   Text="{x:Static controls:Symbols.Visibility}"/>
+                        <TextBlock Text="Preview"/>
+                    </StackPanel>
+                </ToggleButton>
+            </Grid>
         </Border>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="20,8,20,12">
-            <TextBox Grid.Column="0"
-                     x:Name="BodyEditor"
+        <Grid Grid.Row="2" Margin="20,8,20,12">
+            <TextBox x:Name="BodyEditor"
                      Text="{Binding EditorBody, Mode=TwoWay}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
@@ -123,8 +153,8 @@
                      Padding="14"
                      Watermark="Write markdown. Use [[Another Note]] to connect ideas."/>
 
-            <Border Grid.Column="1"
-                    Margin="14,0,0,0"
+            <Border x:Name="PreviewPane"
+                    IsVisible="False"
                     Background="{DynamicResource PanelBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
