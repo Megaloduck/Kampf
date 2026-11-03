@@ -300,6 +300,19 @@
                                Classes="meta"
                                FontSize="10.5"
                                TextWrapping="Wrap"/>
+                    <Button Classes="ghost"
+                            FontSize="11"
+                            Padding="10,4"
+                            HorizontalAlignment="Left"
+                            Command="{Binding SuggestConnectionsCommand}"
+                            ToolTip.Tip="Look for related notes and tags; everything lands in the queue for review">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Classes="icon"
+                                       FontSize="14"
+                                       Text="{x:Static controls:Symbols.AutoAwesome}"/>
+                            <TextBlock Text="Find connections"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <ScrollViewer Grid.Row="1">
@@ -327,6 +340,12 @@
                                         </Grid>
                                         <TextBlock Text="{Binding Title}"
                                                    FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Detail}"
+                                                   IsVisible="{Binding HasDetail}"
+                                                   Classes="meta"
+                                                   FontSize="10.5"
+                                                   FontStyle="Italic"
                                                    TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <Button Classes="primary"

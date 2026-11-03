@@ -126,11 +126,21 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 detail TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS note_embeddings (
+                note_id      TEXT PRIMARY KEY,
+                model        TEXT NOT NULL,
+                dim          INTEGER NOT NULL,
+                content_hash TEXT NOT NULL,
+                vector       BLOB NOT NULL,
+                updated_at   TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS ix_notes_updated ON notes (updated_at DESC);
             CREATE INDEX IF NOT EXISTS ix_links_source ON links (source_id);
             CREATE INDEX IF NOT EXISTS ix_links_target ON links (target_id);
             CREATE INDEX IF NOT EXISTS ix_highlights_document ON highlights (document_id);
             CREATE INDEX IF NOT EXISTS ix_suggestions_status ON suggestions (status);
+            CREATE INDEX IF NOT EXISTS ix_note_embeddings_model ON note_embeddings (model);
             """, ct);
 
         await EnsureDocumentDetailColumnsAsync(connection, ct);
@@ -284,6 +294,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
                      {
                          "DELETE FROM links WHERE source_id = $id OR target_id = $id;",
                          "DELETE FROM note_tags WHERE note_id = $id;",
+                         "DELETE FROM note_embeddings WHERE note_id = $id;",
                          "UPDATE highlights SET note_id = NULL WHERE note_id = $id;",
                          "DELETE FROM notes WHERE id = $id;",
                      })
@@ -876,7 +887,96 @@ public sealed class SqliteVaultRepository : IVaultRepository
         return string.Join(" AND ", tokens);
     }
 
+    // ------------------------------------------------------------ embeddings
+
+    public async Task<IReadOnlyList<NoteEmbedding>> ListEmbeddingsAsync(string model, CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT note_id, model, content_hash, vector
+            FROM note_embeddings WHERE model = $model;
+            """;
+        command.Parameters.AddWithValue("$model", model);
+
+        var embeddings = new List<NoteEmbedding>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            embeddings.Add(new NoteEmbedding(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                FromBlob((byte[])reader.GetValue(3))));
+        }
+
+        return embeddings;
+    }
+
+    /// <summary>
+    /// Replaces the stored vector of each note. A note has one vector, so a
+    /// different model supersedes the old one instead of comparing mixed spaces.
+    /// </summary>
+    public async Task SaveEmbeddingsAsync(IEnumerable<NoteEmbedding> embeddings, CancellationToken ct = default)
+    {
+        var rows = embeddings.ToList();
+        if (rows.Count == 0)
+            return;
+
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var transaction = connection.BeginTransaction();
+
+            foreach (var row in rows)
+            {
+                await using (var delete = connection.CreateCommand())
+                {
+                    delete.Transaction = transaction;
+                    delete.CommandText = "DELETE FROM note_embeddings WHERE note_id = $id;";
+                    delete.Parameters.AddWithValue("$id", row.NoteId);
+                    await delete.ExecuteNonQueryAsync(ct);
+                }
+
+                await using var insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT INTO note_embeddings (note_id, model, dim, content_hash, vector, updated_at)
+                    VALUES ($id, $model, $dim, $hash, $vector, $at);
+                    """;
+                insert.Parameters.AddWithValue("$id", row.NoteId);
+                insert.Parameters.AddWithValue("$model", row.Model);
+                insert.Parameters.AddWithValue("$dim", row.Vector.Length);
+                insert.Parameters.AddWithValue("$hash", row.ContentHash);
+                insert.Parameters.AddWithValue("$vector", ToBlob(row.Vector));
+                insert.Parameters.AddWithValue("$at", ToDb(DateTimeOffset.Now));
+                await insert.ExecuteNonQueryAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
     // -------------------------------------------------------------- helpers
+
+    private static byte[] ToBlob(float[] vector)
+    {
+        var bytes = new byte[vector.Length * sizeof(float)];
+        Buffer.BlockCopy(vector, 0, bytes, 0, bytes.Length);
+        return bytes;
+    }
+
+    private static float[] FromBlob(byte[] bytes)
+    {
+        var vector = new float[bytes.Length / sizeof(float)];
+        Buffer.BlockCopy(bytes, 0, vector, 0, vector.Length * sizeof(float));
+        return vector;
+    }
 
     private async Task<SqliteConnection> OpenAsync(CancellationToken ct)
     {

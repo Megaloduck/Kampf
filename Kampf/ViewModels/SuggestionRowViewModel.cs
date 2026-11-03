@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using Kampf.Application.Models;
 using Kampf.Domain.Entities;
 using Kampf.Domain.ValueObjects;
 
@@ -37,6 +38,16 @@ public sealed class SuggestionRowViewModel
         SuggestionKind.ApplyTag => "TAG",
         _ => "SUGGESTION",
     };
+
+    /// <summary>Why the proposal exists, when the payload carries a reason.</summary>
+    public string Detail => Suggestion.Kind switch
+    {
+        SuggestionKind.LinkNotes =>
+            SuggestionJson.Deserialize<LinkNotesPayload>(Suggestion.PayloadJson)?.Reason ?? string.Empty,
+        _ => string.Empty,
+    };
+
+    public bool HasDetail => Detail.Length > 0;
 
     public string AgeLabel => Suggestion.CreatedAt.LocalDateTime.ToString("MMM d, HH:mm");
 }

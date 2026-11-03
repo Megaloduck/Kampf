@@ -9,7 +9,8 @@ public sealed record GraphNode(
     string Label,
     int Degree,
     string? Tag,
-    int? Year);
+    int? Year,
+    string? Author = null);
 
 public sealed record GraphEdge(string SourceId, string TargetId, EdgeKind Kind);
 

@@ -16,6 +16,7 @@ public sealed class FakeVaultRepository : IVaultRepository
     public List<Highlight> Highlights { get; } = new();
     public List<Suggestion> Suggestions { get; } = new();
     public List<AuditEntry> Audit { get; } = new();
+    public Dictionary<string, NoteEmbedding> Embeddings { get; } = new(StringComparer.Ordinal);
 
     public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
 
@@ -56,6 +57,7 @@ public sealed class FakeVaultRepository : IVaultRepository
         Notes.Remove(id);
         Links.RemoveAll(l => l.SourceId == id || l.TargetId == id);
         NoteTags.Remove(id);
+        Embeddings.Remove(id);
         return Task.CompletedTask;
     }
 
@@ -168,5 +170,17 @@ public sealed class FakeVaultRepository : IVaultRepository
             .ToList();
 
         return Task.FromResult<IReadOnlyList<SearchHit>>(hits);
+    }
+
+    public Task<IReadOnlyList<NoteEmbedding>> ListEmbeddingsAsync(string model, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<NoteEmbedding>>(
+            Embeddings.Values.Where(e => e.Model == model).ToList());
+
+    public Task SaveEmbeddingsAsync(IEnumerable<NoteEmbedding> embeddings, CancellationToken ct = default)
+    {
+        foreach (var embedding in embeddings)
+            Embeddings[embedding.NoteId] = embedding;
+
+        return Task.CompletedTask;
     }
 }

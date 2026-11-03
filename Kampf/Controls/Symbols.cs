@@ -22,6 +22,7 @@ public static class Symbols
     public const string Save = "\uE161";
     public const string OpenInNew = "\uE89E";
     public const string FormatQuote = "\uE244";
+    public const string AutoAwesome = "\uE65F";
     public const string Undo = "\uE166";
     public const string Redo = "\uE15A";
     public const string Notes = "\uE26C";

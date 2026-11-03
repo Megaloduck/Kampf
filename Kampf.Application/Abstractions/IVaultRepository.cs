@@ -54,4 +54,8 @@ public interface IVaultRepository
 
     // Full-text search
     Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int limit = 50, CancellationToken ct = default);
+
+    // Cached note vectors for the suggestion engine (one row per note and model)
+    Task<IReadOnlyList<NoteEmbedding>> ListEmbeddingsAsync(string model, CancellationToken ct = default);
+    Task SaveEmbeddingsAsync(IEnumerable<NoteEmbedding> embeddings, CancellationToken ct = default);
 }

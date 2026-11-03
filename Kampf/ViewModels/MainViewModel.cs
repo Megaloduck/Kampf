@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly GraphService _graphService;
     private readonly SearchService _searchService;
     private readonly SuggestionService _suggestionService;
+    private readonly SuggestionEngine _suggestionEngine;
     private readonly Dictionary<string, IReadOnlyList<PageViewModel>> _pageCache = new(StringComparer.Ordinal);
 
     private List<Note> _allNotes = new();
@@ -61,6 +62,7 @@ public partial class MainViewModel : ViewModelBase
         _graphService = new GraphService(vault.Repository);
         _searchService = new SearchService(vault.Repository);
         _suggestionService = new SuggestionService(vault.Repository, _noteService);
+        _suggestionEngine = new SuggestionEngine(vault.Repository, vault.Embeddings);
 
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
@@ -661,6 +663,38 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedDocument is not null)
             View = VaultView.Reader;
+    }
+
+    /// <summary>
+    /// Runs the suggestion producers. Links and tags land in the review queue as
+    /// Pending rows; the graph is untouched until the researcher accepts them.
+    /// </summary>
+    [RelayCommand]
+    private async Task SuggestConnectionsAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        try
+        {
+            await SaveEditorIfDirtyAsync();
+
+            var batch = await _suggestionEngine.GenerateAsync();
+            await RefreshAsync();
+
+            StatusMessage = batch.Total == 0
+                ? "No new connections found \u2014 write a little more, then try again."
+                : $"{batch.LinkSuggestions} link and {batch.TagSuggestions} tag suggestion(s) queued \u2014 nothing changes until you accept.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Suggestion run failed: " + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public async Task AcceptSuggestionAsync(SuggestionRowViewModel? row)

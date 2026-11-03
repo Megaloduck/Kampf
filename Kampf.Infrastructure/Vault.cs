@@ -1,3 +1,5 @@
+using Kampf.Application.Abstractions;
+using Kampf.Infrastructure.Embeddings;
 using Kampf.Infrastructure.Pdf;
 using Kampf.Infrastructure.Storage;
 
@@ -18,6 +20,9 @@ public sealed class Vault
     public VaultFileStore Files { get; }
     public PdfPigExtractor PdfExtractor { get; }
 
+    /// <summary>Offline hashing embedder unless a local Ollama model is configured.</summary>
+    public IEmbeddingProvider Embeddings { get; }
+
     private Vault(string rootPath)
     {
         RootPath = rootPath;
@@ -28,6 +33,7 @@ public sealed class Vault
         Repository = new SqliteVaultRepository(DatabasePath, NotesDirectory);
         Files = new VaultFileStore(AssetsDirectory);
         PdfExtractor = new PdfPigExtractor();
+        Embeddings = EmbeddingProviders.CreateFromEnvironment();
     }
 
     /// <summary>

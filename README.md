@@ -29,6 +29,12 @@ This repository implements the **Phase 1 MVP** from `Plan_Kampf.pdf`.
   plus `tag:name` filtering.
 - **Review queue** — every proposal shows its reason and does nothing until you
   accept or reject it. Decisions are written to an activity log.
+- **Find connections** — a button in the review panel runs the Phase 2 suggestion
+  producers: note pairs that are close in embedding space become *Link* proposals
+  (with the words they share and a percentage), and tags that neighbouring notes
+  agree on become *Tag* proposals. Nothing is written to the graph until you
+  accept, a rejected pair is never proposed again, and note vectors are cached
+  by content hash so only edited notes are re-embedded.
 - **Dark / light theme** — a header button switches the whole workspace; the
 graph canvas and markdown preview follow the active theme.
 - **Deletion** — notes and imported papers can be deleted (both ask for a second
@@ -52,7 +58,8 @@ refused while notes still carry page anchors into it.
 ```
 Kampf.Domain          entities, value objects, invariants (no dependencies)
 Kampf.Application     services + ports: notes, import, graph, search, suggestions
-Kampf.Infrastructure  SQLite/FTS5 repository, markdown mirror, PdfPig extraction
+Kampf.Infrastructure  SQLite/FTS5 repository, markdown mirror, PdfPig extraction,
+                     embeddings (offline hashing or local Ollama)
 Kampf                 Avalonia UI: view models, graph canvas, markdown preview
 Kampf.Desktop         desktop host
 tests/*               domain rules, application services, SQLite + PDF round trips
@@ -66,7 +73,7 @@ in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 39 tests across three projects
+dotnet test                      # 57 tests across three projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux; the Android
@@ -95,9 +102,29 @@ Every edge in the graph is traceable:
 | `Manual` | note ↔ source PDF provenance from a highlight you captured |
 | `AcceptedSuggestion` | a suggestion you explicitly accepted |
 
-Nothing writes into the graph on its own. AI-assisted suggestion generation is
-Phase 2; the queue, payloads and accept/reject paths already exist, so Phase 2
-only needs to produce suggestions.
+Nothing writes into the graph on its own. Suggestions are produced on demand and
+land in the queue as `Pending`; only an accept (or edit-then-accept) writes an
+edge.
+
+## Suggestions and embeddings
+
+`SuggestionEngine` (Application) proposes links and tags; `SuggestionService` is
+the gate that applies them. Two embedding backends implement the same port:
+
+| Backend | When | Notes |
+| --- | --- | --- |
+| `kampf-hash-512` | default | Dependency-free signed feature hashing over words and word pairs. Lexical overlap, works offline, no model to install. |
+| `ollama:<model>` | `KAMPF_OLLAMA_URL` + `KAMPF_EMBEDDING_MODEL` are set | Semantic vectors from a local Ollama server, e.g. `http://localhost:11434` with `nomic-embed-text`. |
+
+Each backend publishes its own similarity floor, because lexical and semantic
+cosines do not live on the same scale. Vectors are stored in `note_embeddings`
+tagged with the model: switching models re-embeds instead of comparing mixed
+spaces, and notes whose text hash is unchanged are reused.
+
+Candidate pairs are compared exhaustively up to 1,500 notes; above that they are
+blocked by shared significant words so a large vault stays responsive. A run is
+capped (40 links, 20 tags), and every harvested pair is remembered — accepted,
+pending or rejected — so the queue never nags about the same thing twice.
 
 ## Deliberately deferred
 
@@ -105,7 +132,10 @@ only needs to produce suggestions.
   a rendered preview.
 - Visual PDF page rendering (WebView + PDF.js) — Phase 1 shows extracted page text
   with selectable ranges for highlight-to-note.
-- Vector search, embeddings, AI drafting, sync, publishing — Phase 2+.
+- The RAG chatbot (ChatService), semantic *search* over the vault, LLM summaries
+  and cross-paper synthesis — the embedding pipeline built here is the base they
+  will sit on.
+- Sync, publishing and encryption at rest — Phase 4.
 
 ## Icons
 
