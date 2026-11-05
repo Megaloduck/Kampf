@@ -16,12 +16,18 @@ public sealed class ImportService
     private readonly IVaultRepository _repo;
     private readonly IPdfExtractor _extractor;
     private readonly IVaultFileStore _files;
+    private readonly DocumentPageIndex? _pages;
 
-    public ImportService(IVaultRepository repo, IPdfExtractor extractor, IVaultFileStore files)
+    public ImportService(
+        IVaultRepository repo,
+        IPdfExtractor extractor,
+        IVaultFileStore files,
+        DocumentPageIndex? pages = null)
     {
         _repo = repo;
         _extractor = extractor;
         _files = files;
+        _pages = pages;
     }
 
     public async Task<ImportResult> ImportAsync(string filePath, CancellationToken ct = default)
@@ -50,6 +56,27 @@ public sealed class ImportService
         document.Language = extraction.Language;
 
         await _repo.SaveDocumentAsync(document, ct);
+
+        if (_pages is not null)
+        {
+            // Store the page text once, here, so the paper's body is searchable
+            // without re-parsing the PDF on every query. A failing embedder must
+            // not lose an import that already succeeded.
+            try
+            {
+                await _pages.EnsureTextAsync(document, extraction.Pages, ct);
+                await _pages.IndexAsync(new[] { document }, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // Text search still works; vectors are rebuilt on the next open.
+            }
+        }
+
         await _repo.AppendAuditAsync(
             AuditEntry.Create("document.imported", $"{document.Title} ({document.PageCount} pages)"),
             ct);

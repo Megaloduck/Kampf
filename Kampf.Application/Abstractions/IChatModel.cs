@@ -11,4 +11,14 @@ public interface IChatModel
     string Name { get; }
 
     Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
+
+    /// <summary>
+    /// The same completion, delivered as it is generated. Used by Idea-Craft so a
+    /// long answer appears while it is being written; a model that cannot stream
+    /// can yield the whole answer once.
+    /// </summary>
+    IAsyncEnumerable<string> StreamAsync(
+        string systemPrompt,
+        string userPrompt,
+        CancellationToken ct = default);
 }

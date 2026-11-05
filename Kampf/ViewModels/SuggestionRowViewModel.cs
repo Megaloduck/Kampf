@@ -36,13 +36,14 @@ public sealed class SuggestionRowViewModel
         SuggestionKind.CreateMissingNote => "MISSING NOTE",
         SuggestionKind.LinkNotes => "LINK",
         SuggestionKind.ApplyTag => "TAG",
+        SuggestionKind.ConnectDots => "CONNECT",
         _ => "SUGGESTION",
     };
 
     /// <summary>Why the proposal exists, when the payload carries a reason.</summary>
     public string Detail => Suggestion.Kind switch
     {
-        SuggestionKind.LinkNotes =>
+        SuggestionKind.LinkNotes or SuggestionKind.ConnectDots =>
             SuggestionJson.Deserialize<LinkNotesPayload>(Suggestion.PayloadJson)?.Reason ?? string.Empty,
         _ => string.Empty,
     };

@@ -3,11 +3,18 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Kampf.Application.Abstractions;
 using Kampf.Application.Models;
 using Kampf.Application.Services;
 using Kampf.Domain.Entities;
@@ -35,6 +42,8 @@ public partial class MainViewModel : ViewModelBase
     private const string NotesOnly = "Notes only";
     private const string DocumentsOnly = "Documents only";
     private const string AllTags = "All tags";
+    private const string AllYears = "All years";
+    private const string AllAuthors = "All authors";
 
     private readonly Vault _vault;
     private readonly NoteService _noteService;
@@ -44,7 +53,37 @@ public partial class MainViewModel : ViewModelBase
     private readonly SuggestionService _suggestionService;
     private readonly SuggestionEngine _suggestionEngine;
     private readonly ChatService _chatService;
+    private readonly DocumentBriefService _briefService;
+    private readonly PublishService _publishService;
+    private readonly DocumentPageIndex _pageIndex;
+    private readonly IPdfPageRenderer _renderer;
     private readonly Dictionary<string, IReadOnlyList<PageViewModel>> _pageCache = new(StringComparer.Ordinal);
+
+    /// <summary>Cancels the page rendering of the paper that was open before this one.</summary>
+    private CancellationTokenSource? _renderCts;
+
+    /// <summary>
+    /// The page the reader was told to jump to but has not rendered yet. Its
+    /// placeholder is shorter than the page itself, so the scroll is repeated
+    /// once the image arrives and the card reaches its real height.
+    /// </summary>
+    private PageJump? _pendingJump;
+
+    /// <summary>Width available to a page card at 100% zoom, reported by the reader.</summary>
+    private double _readerViewportWidth = 680;
+
+    /// <summary>Where the reader is now, saved when the paper is left.</summary>
+    private int _readerPage = 1;
+    private double _readerOffset;
+
+    /// <summary>The paper the saved reading position belongs to.</summary>
+    private string? _readerDocumentId;
+
+    /// <summary>True while a paper's saved position is being applied.</summary>
+    private bool _restoringReader;
+
+    /// <summary>Cancels the answer that is currently streaming.</summary>
+    private CancellationTokenSource? _chatCts;
 
     private List<Note> _allNotes = new();
     private List<PdfDocument> _allDocuments = new();
@@ -61,23 +100,33 @@ public partial class MainViewModel : ViewModelBase
     {
         _vault = vault;
         _noteService = new NoteService(vault.Repository);
-        _importService = new ImportService(vault.Repository, vault.PdfExtractor, vault.Files);
+        _pageIndex = vault.Pages;
+        _renderer = vault.PageRenderer;
+        _importService = new ImportService(vault.Repository, vault.PdfExtractor, vault.Files, _pageIndex);
         _graphService = new GraphService(vault.Repository);
         _searchService = new SearchService(
             vault.Repository,
-            new NoteEmbeddingIndex(vault.Repository, vault.Embeddings));
+            new NoteEmbeddingIndex(vault.Repository, vault.Embeddings),
+            _pageIndex);
         _suggestionService = new SuggestionService(vault.Repository, _noteService);
         _suggestionEngine = new SuggestionEngine(vault.Repository, vault.Embeddings);
         _chatService = new ChatService(vault.Repository, _searchService, vault.Chat);
+        _briefService = new DocumentBriefService(vault.Chat);
+        _publishService = new PublishService(vault.Repository);
 
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
         TagFilters = new ObservableCollection<string> { AllTags };
+        YearFilters = new ObservableCollection<string> { AllYears };
+        AuthorFilters = new ObservableCollection<string> { AllAuthors };
         SyncSecurityState();
     }
 
     /// <summary>Set by the view so the view model stays free of window APIs.</summary>
     public Func<Task<IReadOnlyList<string>>>? PickPdfFiles { get; set; }
+
+    /// <summary>Folder chooser for publishing a static copy of the vault.</summary>
+    public Func<Task<string?>>? PickPublishFolder { get; set; }
 
     public string VaultPath { get; }
 
@@ -91,6 +140,8 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<ChatExchangeViewModel> ChatExchanges { get; } = new();
     public ObservableCollection<string> SourceFilters { get; }
     public ObservableCollection<string> TagFilters { get; }
+    public ObservableCollection<string> YearFilters { get; }
+    public ObservableCollection<string> AuthorFilters { get; }
 
     // ------------------------------------------------------------- shell state
 
@@ -194,6 +245,49 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void CloseSettings() => View = VaultView.Graph;
+
+    /// <summary>
+    /// Phase 4 publishing: writes a static, self-contained copy of the notes and
+    /// papers into a folder the researcher chooses. Nothing is uploaded — the
+    /// folder can be zipped, committed or served however they like.
+    /// </summary>
+    [RelayCommand]
+    private async Task PublishAsync()
+    {
+        if (PickPublishFolder is null)
+        {
+            SettingsError = "Folder picker unavailable.";
+            return;
+        }
+
+        var folder = await PickPublishFolder();
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        IsBusy = true;
+        SettingsError = string.Empty;
+        SettingsMessage = "Publishing\u2026";
+
+        try
+        {
+            await SaveEditorIfDirtyAsync();
+
+            var result = await _publishService.PublishAsync(folder);
+            SettingsMessage =
+                $"Published {result.Notes} note(s) and {result.Papers} paper(s) to {result.Directory}. " +
+                "Open index.html there.";
+            StatusMessage = $"Static copy published \u00b7 {result.Notes} note(s)";
+        }
+        catch (Exception ex)
+        {
+            SettingsMessage = string.Empty;
+            SettingsError = "Publish failed: " + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     [RelayCommand]
     private async Task EnableEncryptionAsync()
@@ -345,6 +439,22 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isChatting;
     [ObservableProperty] private bool _hasChatHistory;
 
+    /// <summary>The answer as it arrives, before the stored turn replaces it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLiveAnswer))]
+    private string _liveAnswer = string.Empty;
+
+    public bool HasLiveAnswer => LiveAnswer.Length > 0;
+
+    /// <summary>The question being answered right now, kept while its answer streams.</summary>
+    [ObservableProperty] private string _liveQuestion = string.Empty;
+
+    /// <summary>
+    /// Raised when the reader should scroll to a page (citation, search hit) and,
+    /// when the jump knows which passage it came from, mark that passage.
+    /// </summary>
+    public event EventHandler<PageJump>? PageJumpRequested;
+
     /// <summary>Which backend answers: a local model, or cited passages only.</summary>
     public string ChatModelLabel => _chatService.ModelLabel;
     public bool HasLocalChatModel => _chatService.HasLocalModel;
@@ -366,15 +476,25 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string? _selectedNodeId;
     [ObservableProperty] private string _sourceFilter = AllSources;
     [ObservableProperty] private string _tagFilter = AllTags;
+    [ObservableProperty] private string _yearFilter = AllYears;
+    [ObservableProperty] private string _authorFilter = AllAuthors;
+    [ObservableProperty] private bool _unreviewedOnly;
     [ObservableProperty] private string _readerTitle = string.Empty;
     [ObservableProperty] private string _readerCitation = string.Empty;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasReaderAbstract))]
     private string _readerAbstract = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReaderBrief))]
+    private string _readerBrief = string.Empty;
+    [ObservableProperty] private bool _isBriefing;
     [ObservableProperty] private bool _confirmDeleteDocument;
 
     /// <summary>The paper's abstract, when the PDF carried one.</summary>
     public bool HasReaderAbstract => ReaderAbstract.Length > 0;
+
+    /// <summary>A model-written brief the researcher has not saved or dismissed yet.</summary>
+    public bool HasReaderBrief => ReaderBrief.Length > 0;
 
     public bool HasSelectedNote => SelectedNote is not null;
     public bool HasSelectedDocument => SelectedDocument is not null;
@@ -413,6 +533,12 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSourceFilterChanged(string value) => RebuildGraph();
 
     partial void OnTagFilterChanged(string value) => RebuildGraph();
+
+    partial void OnYearFilterChanged(string value) => RebuildGraph();
+
+    partial void OnAuthorFilterChanged(string value) => RebuildGraph();
+
+    partial void OnUnreviewedOnlyChanged(bool value) => RebuildGraph();
 
     // ------------------------------------------------------------ editor state
 
@@ -461,6 +587,9 @@ public partial class MainViewModel : ViewModelBase
             StatusMessage = _allNotes.Count == 0 && _allDocuments.Count == 0
                 ? "Empty vault \u2014 import a PDF or create your first note."
                 : $"Vault ready \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers";
+
+            if (_allDocuments.Count > 0)
+                _ = IndexPaperPagesAsync(_allDocuments);
         }
         catch (Exception ex)
         {
@@ -483,6 +612,8 @@ public partial class MainViewModel : ViewModelBase
             RebuildNoteAndDocumentLists();
             await ReloadReviewAsync();
             RebuildTagFilters();
+            RebuildYearFilters();
+            RebuildAuthorFilters();
             RebuildGraph();
 
             if (noteId is not null)
@@ -521,6 +652,25 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>Rebuilds the Idea-Craft transcript from the stored turns.</summary>
+    /// <summary>
+    /// Brings paper page text and vectors up to date in the background, so a
+    /// vault imported before this existed becomes searchable by body text.
+    /// </summary>
+    private async Task IndexPaperPagesAsync(IReadOnlyList<PdfDocument> documents)
+    {
+        try
+        {
+            // Hashing and embedding are CPU-bound, so they stay off the UI thread.
+            var embedded = await Task.Run(() => _pageIndex.IndexAsync(documents));
+            if (embedded > 0)
+                StatusMessage = $"Indexed {embedded} paper page(s) for search.";
+        }
+        catch (Exception)
+        {
+            // Text search still works over stored pages; only vectors are missing.
+        }
+    }
+
     private async Task ReloadChatAsync()
     {
         var messages = await _chatService.HistoryAsync();
@@ -544,7 +694,7 @@ public partial class MainViewModel : ViewModelBase
             ChatExchanges.Add(new ChatExchangeViewModel(
                 pendingQuestion,
                 message.Text,
-                citations.Select(c => new ChatCitationViewModel(c, OpenChatNoteAsync)).ToList(),
+                citations.Select(c => new ChatCitationViewModel(c, OpenChatNoteAsync, OpenChatPageAsync)).ToList(),
                 message.CreatedAt,
                 warning: null));
 
@@ -591,6 +741,92 @@ public partial class MainViewModel : ViewModelBase
         TagFilter = TagFilters.Contains(previous) ? previous : AllTags;
     }
 
+    private void RebuildYearFilters()
+    {
+        var previous = YearFilter;
+        YearFilters.Clear();
+        YearFilters.Add(AllYears);
+
+        var years = _allDocuments
+            .Where(d => d.Year is not null)
+            .Select(d => d.Year!.Value)
+            .Distinct()
+            .OrderByDescending(y => y);
+
+        foreach (var year in years)
+            YearFilters.Add(year.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        YearFilter = YearFilters.Contains(previous) ? previous : AllYears;
+    }
+
+    private void RebuildAuthorFilters()
+    {
+        var previous = AuthorFilter;
+        AuthorFilters.Clear();
+        AuthorFilters.Add(AllAuthors);
+
+        foreach (var author in _allDocuments
+                     .SelectMany(d => SplitAuthors(d.Authors))
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(a => a, StringComparer.OrdinalIgnoreCase))
+            AuthorFilters.Add(author);
+
+        AuthorFilter = AuthorFilters.Contains(previous) ? previous : AllAuthors;
+    }
+
+    /// <summary>"Wang; Huang" and "Wang, Huang" both yield two names.</summary>
+    private static IEnumerable<string> SplitAuthors(string? authors) =>
+        string.IsNullOrWhiteSpace(authors)
+            ? Enumerable.Empty<string>()
+            : authors
+                .Split(new[] { ';', ',', '&' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(a => a.Length > 0);
+
+    /// <summary>Notes referenced by any pending proposal in the review queue.</summary>
+    private HashSet<string> NotesWithPendingSuggestions()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var row in Suggestions)
+        {
+            switch (row.Suggestion.Kind)
+            {
+                case SuggestionKind.LinkNotes:
+                case SuggestionKind.ConnectDots:
+                {
+                    var payload = SuggestionJson.Deserialize<LinkNotesPayload>(row.Suggestion.PayloadJson);
+                    if (payload is not null)
+                    {
+                        ids.Add(payload.SourceNoteId);
+                        ids.Add(payload.TargetNoteId);
+                    }
+
+                    break;
+                }
+
+                case SuggestionKind.ApplyTag:
+                {
+                    var payload = SuggestionJson.Deserialize<ApplyTagPayload>(row.Suggestion.PayloadJson);
+                    if (payload is not null)
+                        ids.Add(payload.NoteId);
+
+                    break;
+                }
+
+                case SuggestionKind.CreateMissingNote:
+                {
+                    var payload = SuggestionJson.Deserialize<CreateMissingNotePayload>(row.Suggestion.PayloadJson);
+                    if (payload is not null)
+                        ids.Add(payload.SourceNoteId);
+
+                    break;
+                }
+            }
+        }
+
+        return ids;
+    }
+
     private void UpdateCounts()
     {
         var tagCount = _allNotes.SelectMany(n => n.Tags).Select(t => t.Name).Distinct().Count();
@@ -612,6 +848,40 @@ public partial class MainViewModel : ViewModelBase
         if (TagFilter != AllTags)
         {
             notes = notes.Where(n => n.Tags.Any(t => t.Name.Equals(TagFilter, StringComparison.OrdinalIgnoreCase)));
+            documents = Enumerable.Empty<PdfDocument>();
+        }
+
+        if (YearFilter != AllYears && int.TryParse(YearFilter, out var year))
+        {
+            var yearByDocument = _allDocuments
+                .Where(d => d.Year is not null)
+                .ToDictionary(d => d.Id, d => d.Year!.Value, StringComparer.Ordinal);
+
+            notes = notes.Where(n => n.SourceDocumentId is not null &&
+                                     yearByDocument.TryGetValue(n.SourceDocumentId, out var noteYear) &&
+                                     noteYear == year);
+            documents = documents.Where(d => d.Year == year);
+        }
+
+        if (AuthorFilter != AllAuthors)
+        {
+            var authorsById = _allDocuments.ToDictionary(d => d.Id, d => d.Authors, StringComparer.Ordinal);
+
+            static bool Names(string? authors, string name) =>
+                SplitAuthors(authors).Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+            notes = notes.Where(n => n.SourceDocumentId is not null &&
+                                     authorsById.TryGetValue(n.SourceDocumentId, out var authors) &&
+                                     Names(authors, AuthorFilter));
+            documents = documents.Where(d => Names(d.Authors, AuthorFilter));
+        }
+
+        // "Unreviewed": only the notes a pending proposal is about, so the graph
+        // shows exactly what the queue is asking the researcher to decide.
+        if (UnreviewedOnly)
+        {
+            var flagged = NotesWithPendingSuggestions();
+            notes = notes.Where(n => flagged.Contains(n.Id));
             documents = Enumerable.Empty<PdfDocument>();
         }
 
@@ -766,11 +1036,13 @@ public partial class MainViewModel : ViewModelBase
             await _importService.DeleteDocumentAsync(document);
 
             _pageCache.Remove(document.Id);
+            _vault.PageRenderer.Forget(document.FilePath);
             Pages.Clear();
             AnchoredNotes.Clear();
             ReaderTitle = string.Empty;
             ReaderCitation = string.Empty;
             ReaderAbstract = string.Empty;
+            ReaderBrief = string.Empty;
             ReaderDetails.Clear();
             ConfirmDeleteDocument = false;
 
@@ -842,6 +1114,8 @@ public partial class MainViewModel : ViewModelBase
 
         await RefreshAsync();
 
+        var queued = failures.Count == files.Count ? 0 : await QueueSuggestionsAsync();
+
         if (lastImported is not null)
         {
             SelectDocumentById(lastImported);
@@ -849,8 +1123,36 @@ public partial class MainViewModel : ViewModelBase
         }
 
         StatusMessage = failures.Count == 0
-            ? $"Imported {files.Count} PDF(s). Highlight text to create a page-anchored note."
+            ? $"Imported {files.Count} PDF(s)." + (queued > 0
+                ? $" {queued} connection suggestion(s) queued for review."
+                : " Highlight text to create a page-anchored note.")
             : $"Imported with {failures.Count} failure(s): {string.Join("; ", failures)}";
+    }
+
+    /// <summary>
+    /// An import or a captured note changes what can be connected, so the engine
+    /// runs after it instead of waiting for the button. It only fills the review
+    /// queue: the graph is untouched until a proposal is accepted, and a failure
+    /// here must not turn a successful import into an error.
+    /// </summary>
+    private async Task<int> QueueSuggestionsAsync()
+    {
+        try
+        {
+            await SaveEditorIfDirtyAsync();
+
+            var batch = await _suggestionEngine.GenerateAsync();
+            if (batch.Total == 0)
+                return 0;
+
+            await ReloadReviewAsync();
+            UpdateCounts();
+            return batch.Total;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
     }
 
     [RelayCommand]
@@ -886,11 +1188,19 @@ public partial class MainViewModel : ViewModelBase
                 .GroupBy(n => n.SourceDocumentId!, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
+            var pagesById = hits
+                .Where(h => h.Kind == "document" && h.Page is not null)
+                .GroupBy(h => h.Id, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().Page, StringComparer.Ordinal);
+
             foreach (var id in documentOrder)
             {
                 var document = _allDocuments.FirstOrDefault(d => d.Id == id);
                 if (document is not null)
-                    Documents.Add(new DocumentRowViewModel(document, anchoredCounts.GetValueOrDefault(document.Id)));
+                    Documents.Add(new DocumentRowViewModel(
+                        document,
+                        anchoredCounts.GetValueOrDefault(document.Id),
+                        pagesById.GetValueOrDefault(id)));
             }
 
             SelectedNote = null;
@@ -942,17 +1252,48 @@ public partial class MainViewModel : ViewModelBase
             return;
 
         IsChatting = true;
+        ChatQuestion = string.Empty;
+        LiveQuestion = question;
+        LiveAnswer = string.Empty;
+        View = VaultView.Chat;
+
+        using var cts = new CancellationTokenSource();
+        _chatCts = cts;
+
+        var buffer = new StringBuilder();
+        var lastPost = DateTime.UtcNow;
+
         try
         {
-            var answer = await _chatService.AskAsync(question);
-            ChatQuestion = string.Empty;
+            var answer = await _chatService.AskStreamingAsync(
+                question,
+                delta =>
+                {
+                    buffer.Append(delta);
+
+                    // Post at most ~15 times a second: a token-by-token binding
+                    // churn is wasted layout, but the answer must feel live.
+                    var now = DateTime.UtcNow;
+                    if ((now - lastPost).TotalMilliseconds < 65 && buffer.Length > 0)
+                        return Task.CompletedTask;
+
+                    lastPost = now;
+                    var snapshot = buffer.ToString();
+                    Dispatcher.UIThread.Post(() => LiveAnswer = snapshot);
+                    return Task.CompletedTask;
+                },
+                cts.Token);
+
             await ReloadChatAsync();
-            View = VaultView.Chat;
 
             StatusMessage = answer.Citations.Count == 0
                 ? "Idea-Craft found nothing to cite \u2014 it says so instead of guessing."
                 : $"Answer built from {answer.Citations.Count} source(s)" +
                   (answer.UsedLocalModel ? "." : " \u2014 no local model configured, so the passages are the answer.");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Answer stopped.";
         }
         catch (Exception ex)
         {
@@ -960,9 +1301,15 @@ public partial class MainViewModel : ViewModelBase
         }
         finally
         {
+            _chatCts = null;
+            LiveAnswer = string.Empty;
+            LiveQuestion = string.Empty;
             IsChatting = false;
         }
     }
+
+    [RelayCommand]
+    private void CancelChat() => _chatCts?.Cancel();
 
     /// <summary>A citation opens the note it points at, so the claim can be checked.</summary>
     private async Task OpenChatNoteAsync(string noteId)
@@ -972,6 +1319,245 @@ public partial class MainViewModel : ViewModelBase
 
         SelectNoteById(noteId);
         View = VaultView.Editor;
+    }
+
+    /// <summary>
+    /// A page citation opens the paper at the page, where the claim lives, and
+    /// marks the cited passage so it can be read in place.
+    /// </summary>
+    private async Task OpenChatPageAsync(string documentId, int page, string? quote = null)
+    {
+        var document = _allDocuments.FirstOrDefault(d => d.Id == documentId);
+        if (document is null)
+        {
+            await RefreshAsync();
+            document = _allDocuments.FirstOrDefault(d => d.Id == documentId);
+        }
+
+        if (document is null)
+            return;
+
+        await LoadDocumentAsync(document);
+        MarkCitedPassage(page, quote);
+        _pendingJump = new PageJump(page, quote);
+        PageJumpRequested?.Invoke(this, _pendingJump);
+    }
+
+    /// <summary>Double-clicking a captured passage on the page opens its note.</summary>
+    public void OpenAnchoredNote(string noteId)
+    {
+        SelectNoteById(noteId);
+
+        if (SelectedNote?.Note.Id == noteId)
+            View = VaultView.Editor;
+    }
+
+    // ------------------------------------------------- reading: zoom + search
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ZoomLabel))]
+    private double _readerZoom = ReadingState.DefaultZoom;
+
+    public string ZoomLabel => $"{Math.Round(ReaderZoom * 100):0}%";
+
+    partial void OnReaderZoomChanged(double value)
+    {
+        ApplyZoom();
+
+        // Restoring a paper sets the zoom before its saved page and offset are
+        // in place; writing now would overwrite them with the old position.
+        if (!_restoringReader)
+            _ = SaveReadingStateAsync();
+    }
+
+    [RelayCommand]
+    private void ZoomIn() => ReaderZoom = Math.Min(ReadingState.MaximumZoom, Math.Round(ReaderZoom + 0.1, 2));
+
+    [RelayCommand]
+    private void ZoomOut() => ReaderZoom = Math.Max(ReadingState.MinimumZoom, Math.Round(ReaderZoom - 0.1, 2));
+
+    [RelayCommand]
+    private void ResetZoom() => ReaderZoom = ReadingState.DefaultZoom;
+
+    /// <summary>The reader reports its width so page cards can be sized at the current zoom.</summary>
+    public void SetReaderViewport(double width)
+    {
+        if (width <= 0 || Math.Abs(width - _readerViewportWidth) < 1)
+            return;
+
+        _readerViewportWidth = width;
+        ApplyZoom();
+    }
+
+    private void ApplyZoom()
+    {
+        var cardWidth = Math.Max(320, _readerViewportWidth) * ReaderZoom;
+
+        foreach (var page in Pages)
+        {
+            page.Zoom = ReaderZoom;
+            page.ZoomWidth = Math.Round(cardWidth);
+        }
+    }
+
+    /// <summary>The reader reports the page at the top of the viewport.</summary>
+    public void UpdateReadingPosition(int page, double offset)
+    {
+        _readerPage = Math.Max(1, page);
+        _readerOffset = Math.Clamp(double.IsFinite(offset) ? offset : 0, 0, 1);
+    }
+
+    /// <summary>Remembers where the open paper was left, so reopening resumes there.</summary>
+    public async Task SaveReadingStateAsync()
+    {
+        if (_readerDocumentId is null)
+            return;
+
+        try
+        {
+            await _vault.Repository.SaveReadingStateAsync(new ReadingState(
+                _readerDocumentId,
+                _readerPage,
+                _readerOffset,
+                ReaderZoom,
+                DateTimeOffset.Now));
+        }
+        catch (Exception)
+        {
+            // Losing a bookmark is not worth interrupting reading.
+        }
+    }
+
+    [ObservableProperty] private string _readerSearchQuery = string.Empty;
+
+    [ObservableProperty] private string _readerSearchLabel = string.Empty;
+
+    [ObservableProperty] private bool _hasReaderSearch;
+
+    private readonly List<(int Page, int Start, int Length)> _readerMatches = new();
+    private int _readerMatchIndex = -1;
+
+    partial void OnReaderSearchQueryChanged(string value) => RunReaderSearch(value);
+
+    /// <summary>Marks every hit on every page, then jumps to the first.</summary>
+    private void RunReaderSearch(string query)
+    {
+        foreach (var page in Pages)
+        {
+            page.ClearSpans(PageSpanKind.Match);
+            page.ClearSpans(PageSpanKind.ActiveMatch);
+        }
+
+        _readerMatches.Clear();
+        _readerMatchIndex = -1;
+
+        if (query.Trim().Length < 2)
+        {
+            HasReaderSearch = false;
+            ReaderSearchLabel = string.Empty;
+            return;
+        }
+
+        foreach (var page in Pages)
+        {
+            foreach (var (start, length) in PageTextSearch.FindAll(page.Text, query))
+            {
+                page.AddSpan(start, length, PageSpanKind.Match);
+                _readerMatches.Add((page.Number, start, length));
+            }
+        }
+
+        HasReaderSearch = true;
+
+        if (_readerMatches.Count == 0)
+        {
+            ReaderSearchLabel = "No matches";
+            return;
+        }
+
+        GoToMatch(0);
+    }
+
+    [RelayCommand]
+    private void NextReaderMatch() => StepMatch(1);
+
+    [RelayCommand]
+    private void PreviousReaderMatch() => StepMatch(-1);
+
+    private void StepMatch(int direction)
+    {
+        if (_readerMatches.Count == 0)
+            return;
+
+        GoToMatch((_readerMatchIndex + direction + _readerMatches.Count) % _readerMatches.Count);
+    }
+
+    private void GoToMatch(int index)
+    {
+        if (index < 0 || index >= _readerMatches.Count)
+            return;
+
+        foreach (var page in Pages)
+            page.ClearSpans(PageSpanKind.ActiveMatch);
+
+        _readerMatchIndex = index;
+        var (pageNumber, start, length) = _readerMatches[index];
+
+        Pages.FirstOrDefault(p => p.Number == pageNumber)
+            ?.AddSpan(start, length, PageSpanKind.ActiveMatch);
+
+        ReaderSearchLabel = $"{index + 1} of {_readerMatches.Count}";
+        _readerPage = pageNumber;
+        _readerOffset = 0;
+        PageJumpRequested?.Invoke(this, new PageJump(pageNumber));
+    }
+
+    /// <summary>Resumes the saved page, offset and zoom for this paper.</summary>
+    private async Task RestoreReadingStateAsync(PdfDocument document)
+    {
+        ReadingState state;
+
+        try
+        {
+            state = await _vault.Repository.GetReadingStateAsync(document.Id)
+                    ?? ReadingState.For(document.Id);
+        }
+        catch (Exception)
+        {
+            state = ReadingState.For(document.Id);
+        }
+
+        _restoringReader = true;
+        try
+        {
+            _readerPage = state.Page;
+            _readerOffset = state.Offset;
+
+            if (Math.Abs(ReaderZoom - state.Zoom) > 0.001)
+                ReaderZoom = state.Zoom;
+            else
+                ApplyZoom();
+        }
+        finally
+        {
+            _restoringReader = false;
+        }
+    }
+
+    /// <summary>Marks the cited passage on one page and clears the marker from the others.</summary>
+    private void MarkCitedPassage(int pageNumber, string? quote)
+    {
+        foreach (var page in Pages)
+        {
+            if (quote is null || page.Number != pageNumber)
+            {
+                page.ClearCitation();
+                continue;
+            }
+
+            var hit = PageTextSearch.Find(page.Text, quote);
+            page.SetCitation(hit?.Start, hit?.Length);
+        }
     }
 
     [RelayCommand]
@@ -1006,9 +1592,23 @@ public partial class MainViewModel : ViewModelBase
             var batch = await _suggestionEngine.GenerateAsync();
             await RefreshAsync();
 
-            StatusMessage = batch.Total == 0
-                ? "No new connections found \u2014 write a little more, then try again."
-                : $"{batch.LinkSuggestions} link and {batch.TagSuggestions} tag suggestion(s) queued \u2014 nothing changes until you accept.";
+            if (batch.Total == 0)
+            {
+                StatusMessage = "No new connections found \u2014 write a little more, then try again.";
+            }
+            else
+            {
+                var parts = new List<string>();
+                if (batch.LinkSuggestions > 0)
+                    parts.Add($"{batch.LinkSuggestions} link");
+                if (batch.TagSuggestions > 0)
+                    parts.Add($"{batch.TagSuggestions} tag");
+                if (batch.ConnectTheDots > 0)
+                    parts.Add($"{batch.ConnectTheDots} connect-the-dots");
+
+                StatusMessage = $"{string.Join(", ", parts)} suggestion(s) queued across " +
+                                $"{batch.Clusters} cluster(s) \u2014 nothing changes until you accept.";
+            }
         }
         catch (Exception ex)
         {
@@ -1099,8 +1699,76 @@ public partial class MainViewModel : ViewModelBase
 
     // ------------------------------------------------------------- reader / PDF
 
+    // -------------------------------------------------------------- paper brief
+
+    /// <summary>
+    /// Asks the local model for a brief of the open paper. Nothing is stored here:
+    /// the brief appears in the reader and the researcher decides what happens to it.
+    /// </summary>
+    [RelayCommand]
+    private async Task BriefDocumentAsync()
+    {
+        var document = SelectedDocument?.Document;
+        if (document is null)
+            return;
+
+        if (!_briefService.HasLocalModel)
+        {
+            StatusMessage = "A brief needs a local model. Choose one in Settings, then try again.";
+            return;
+        }
+
+        IsBriefing = true;
+        try
+        {
+            var pages = await _vault.Repository.ListDocumentPagesAsync(document.Id);
+            ReaderBrief = await _briefService.BriefAsync(document, pages.Select(p => p.Text).ToList());
+            StatusMessage = $"Brief written by {_briefService.ModelLabel} \u2014 save it as a note or dismiss it. Nothing is stored yet.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Brief failed: " + ex.Message;
+        }
+        finally
+        {
+            IsBriefing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveBriefAsNoteAsync()
+    {
+        var document = SelectedDocument?.Document;
+        if (document is null || !HasReaderBrief)
+            return;
+
+        var note = await _noteService.CreateAsync($"Brief: {document.Title}", BriefNoteBody());
+        note.SourceDocumentId = document.Id;
+        await _noteService.SaveAsync(note);
+        await RefreshAsync();
+
+        ReaderBrief = string.Empty;
+        StatusMessage = $"Saved the brief as \u201c{note.Title}\u201d \u2014 it is anchored to the paper and was only written because you asked.";
+    }
+
+    [RelayCommand]
+    private void DismissBrief() => ReaderBrief = string.Empty;
+
+    /// <summary>The note body keeps the model's name, so the claim stays traceable.</summary>
+    private string BriefNoteBody() =>
+        ReaderBrief + "\n\n> Generated by " + _briefService.ModelLabel +
+        " from this paper's text; it is a draft, not a finding. Check it against the paper before relying on it.";
+
     private async Task LoadDocumentAsync(PdfDocument document)
     {
+        // Leaving a paper remembers where it was left; opening one resumes it.
+        if (_readerDocumentId is { } previous && previous != document.Id)
+            await SaveReadingStateAsync();
+
+        _readerDocumentId = document.Id;
+        ReaderSearchQuery = string.Empty;
+        ReaderBrief = string.Empty;
+
         SelectedDocument = Documents.FirstOrDefault(d => d.Document.Id == document.Id) ?? SelectedDocument;
         View = VaultView.Reader;
         ReaderTitle = document.Title;
@@ -1130,6 +1798,11 @@ public partial class MainViewModel : ViewModelBase
             if (extraction is not null && ApplyDetail(document, extraction))
                 await _vault.Repository.SaveDocumentAsync(document);
 
+            // Same for page text: a vault built before it was stored becomes
+            // searchable the first time each paper is opened.
+            if (extraction is not null && await _pageIndex.EnsureTextAsync(document, extraction.Pages))
+                _ = IndexPaperPagesAsync(new[] { document });
+
             ReaderCitation = BuildCitationLine(document);
             ReaderAbstract = document.Abstract ?? string.Empty;
             FillReaderDetails(document);
@@ -1141,9 +1814,22 @@ public partial class MainViewModel : ViewModelBase
             AnchoredNotes.Clear();
             var anchored = await _vault.Repository.ListNotesForDocumentAsync(document.Id);
             foreach (var note in anchored)
-                AnchoredNotes.Add(new NoteRowViewModel(note));
+                AnchoredNotes.Add(new NoteRowViewModel(note));                await LoadHighlightsAsync(document, pages);
+            await RestoreReadingStateAsync(document);
+
 
             StatusMessage = $"{document.Title} \u00b7 {document.PageCount} pages \u00b7 {anchored.Count} anchored note(s)";
+
+            var jump = SelectedDocument?.MatchPage is { } matchPage
+                ? new PageJump(matchPage)
+                : new PageJump(_readerPage, null, _readerOffset);
+
+            _pendingJump = jump;
+            PageJumpRequested?.Invoke(this, jump);
+
+            // Rendered pages replace the stored text as the visual surface, so
+            // start with the page the reader is about to look at.
+            StartRendering(document, pages, jump.Page);
         }
         catch (Exception ex)
         {
@@ -1153,6 +1839,172 @@ public partial class MainViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Restores every captured quote as a highlight on its page, so the reader
+    /// shows where the notes came from instead of only listing them.
+    /// </summary>
+    private async Task LoadHighlightsAsync(PdfDocument document, IReadOnlyList<PageViewModel> pages)
+    {
+        try
+        {
+            var highlights = await _vault.Repository.ListHighlightsAsync(document.Id);
+
+            foreach (var highlight in highlights)
+            {
+                var page = pages.FirstOrDefault(p => p.Number == highlight.Page);
+                if (page is null)
+                    continue;
+
+                var hit = PageTextSearch.Find(page.Text, highlight.Text);
+                if (hit is { } span)
+                    page.AddSpan(span.Start, span.Length, PageSpanKind.Note, highlight.NoteId);
+            }
+        }
+        catch (Exception)
+        {
+            // Highlights are a reading aid: a failure here must not block the page.
+        }
+    }
+
+    /// <summary>
+    /// Renders the pages in the background, closest to the page the reader is
+    /// looking at first. Rendering the whole paper up front would stall the
+    /// reader on the first click of a long PDF.
+    /// </summary>
+    private void StartRendering(
+        PdfDocument document,
+        IReadOnlyList<PageViewModel> pages,
+        int? firstPage)
+    {
+        _renderCts?.Cancel();
+        _renderCts?.Dispose();
+        _renderCts = null;
+
+        if (pages.Count == 0)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _renderCts = cts;
+
+        // Page images are large and no longer visible for any other paper.
+        foreach (var (id, cached) in _pageCache)
+        {
+            if (id == document.Id)
+                continue;
+
+            foreach (var cachedPage in cached)
+            {
+                cachedPage.Image?.Dispose();
+                cachedPage.Image = null;
+            }
+        }
+
+        _ = RenderPagesAsync(document, pages, firstPage ?? 1, cts.Token);
+    }
+
+    private async Task RenderPagesAsync(
+        PdfDocument document,
+        IReadOnlyList<PageViewModel> pages,
+        int firstPage,
+        CancellationToken ct)
+    {
+        var startIndex = Math.Clamp(firstPage - 1, 0, pages.Count - 1);
+        var order = new List<PageViewModel>(pages.Count) { pages[startIndex] };
+
+        for (var distance = 1; order.Count < pages.Count; distance++)
+        {
+            if (startIndex + distance < pages.Count)
+                order.Add(pages[startIndex + distance]);
+
+            if (startIndex - distance >= 0)
+                order.Add(pages[startIndex - distance]);
+        }
+
+        var path = document.FilePath;
+
+        foreach (var page in order)
+        {
+            if (ct.IsCancellationRequested)
+                return;
+
+            // Pages cached from an earlier open of this paper keep their image.
+            if (page.Image is not null)
+                continue;
+
+            page.IsRendering = true;
+
+            try
+            {
+                var layout = await _renderer.GetLayoutAsync(path, page.Number, ct).ConfigureAwait(false);
+                var image = await _renderer.RenderAsync(path, page.Number, 820, ct).ConfigureAwait(false);
+
+                if (ct.IsCancellationRequested)
+                    return;
+
+                // Bitmaps belong to the UI thread, and so do the notifications
+                // that make the page card resize around the image.
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (ct.IsCancellationRequested)
+                        return;
+
+                    page.Layout = layout;
+                    page.Image = ToBitmap(image);
+
+                    if (_pendingJump is { } pending && pending.Page == page.Number)
+                    {
+                        _pendingJump = null;
+                        PageJumpRequested?.Invoke(this, pending);
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // No PDFium (or a broken page): the stored text stays readable.
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    page.RenderError = ex.Message;
+                    page.ShowText = true;
+                });
+            }
+            finally
+            {
+                if (!ct.IsCancellationRequested)
+                    await Dispatcher.UIThread.InvokeAsync(() => page.IsRendering = false);
+            }
+        }
+    }
+
+    /// <summary>Wraps PDFium's BGRA bytes in a bitmap the page control can draw.</summary>
+    private static WriteableBitmap ToBitmap(PdfPageImage image)
+    {
+        var bitmap = new WriteableBitmap(
+            new PixelSize(image.Width, image.Height),
+            new Vector(96, 96),
+            PixelFormat.Bgra8888,
+            AlphaFormat.Unpremul);
+
+        using (var frame = bitmap.Lock())
+        {
+            var stride = image.Width * 4;
+
+            for (var row = 0; row < image.Height; row++)
+            {
+                Marshal.Copy(
+                    image.Pixels,
+                    row * stride,
+                    frame.Address + row * frame.RowBytes,
+                    stride);
+            }
+        }
+
+        return bitmap;
     }
 
     /// <summary>Authors, year and journal when known; the file name otherwise.</summary>
@@ -1268,8 +2120,12 @@ public partial class MainViewModel : ViewModelBase
         return changed;
     }
 
-    /// <summary>Called by the reader when the user highlights text and captures it.</summary>
-    public async Task CreateNoteFromHighlightAsync(int page, string text)
+    /// <summary>
+    /// Called by the reader when the user highlights text and captures it.
+    /// <paramref name="start"/> and <paramref name="length"/> are the offsets of
+    /// the selection in the page text, used to draw the highlight straight away.
+    /// </summary>
+    public async Task CreateNoteFromHighlightAsync(int page, string text, int start = -1, int length = 0)
     {
         if (SelectedDocument is null)
         {
@@ -1291,10 +2147,33 @@ public partial class MainViewModel : ViewModelBase
 
             // The reader is left open behind the editor, so its list must not go stale.
             if (SelectedDocument?.Document.Id == note.SourceDocumentId)
+            {
                 AnchoredNotes.Insert(0, new NoteRowViewModel(note));
 
+                var pageViewModel = Pages.FirstOrDefault(p => p.Number == page);
+                if (pageViewModel is not null)
+                {
+                    // Text-mode selections have no offsets, so locate the quote
+                    // in the page text; either way the highlight appears at once.
+                    if (start < 0 || length <= 0)
+                    {
+                        var located = PageTextSearch.Find(pageViewModel.Text, text);
+                        start = located?.Start ?? -1;
+                        length = located?.Length ?? 0;
+                    }
+
+                    if (start >= 0 && length > 0)
+                        pageViewModel.AddSpan(start, length, PageSpanKind.Note, note.Id);
+                }
+            }
+
             View = VaultView.Editor;
-            StatusMessage = $"Note captured from page {page} \u2014 it keeps the page anchor.";
+
+            // A new note is a new thing the vault can connect; the queue fills
+            // itself rather than waiting for the button to be pressed.
+            var queued = await QueueSuggestionsAsync();
+            StatusMessage = $"Note captured from page {page} \u2014 it keeps the page anchor." +
+                            (queued > 0 ? $" {queued} connection suggestion(s) queued." : string.Empty);
         }
         catch (Exception ex)
         {

@@ -20,5 +20,6 @@
     <Project Path="tests/Kampf.Domain.Tests/Kampf.Domain.Tests.csproj" />
     <Project Path="tests/Kampf.Application.Tests/Kampf.Application.Tests.csproj" />
     <Project Path="tests/Kampf.Infrastructure.Tests/Kampf.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Kampf.Ui.Tests/Kampf.Ui.Tests.csproj" />
   </Folder>
 </Solution>

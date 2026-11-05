@@ -44,7 +44,7 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- Paper reader: metadata, extracted pages and their anchored notes. -->
+    <!-- Paper reader: metadata, rendered pages with their highlights, anchored notes. -->
     <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- ============ HEADER ============ -->
@@ -68,6 +68,39 @@
                             Orientation="Horizontal"
                             Spacing="8"
                             VerticalAlignment="Top">
+
+                    <!-- Zoom: page cards are sized at this scale, the column scrolls. -->
+                    <Border Background="{DynamicResource PanelBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="2">
+                        <StackPanel Orientation="Horizontal" Spacing="1">
+                            <Button Classes="ghost"
+                                    Padding="7,3"
+                                    Command="{Binding ZoomOutCommand}"
+                                    ToolTip.Tip="Zoom out">
+                                <TextBlock Classes="icon" FontSize="15"
+                                           Text="{x:Static controls:Symbols.Remove}"/>
+                            </Button>
+                            <TextBlock Text="{Binding ZoomLabel}"
+                                       FontSize="11.5"
+                                       MinWidth="40"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       ToolTip.Tip="Reset zoom"
+                                       PointerPressed="OnZoomLabelPressed"/>
+                            <Button Classes="ghost"
+                                    Padding="7,3"
+                                    Command="{Binding ZoomInCommand}"
+                                    ToolTip.Tip="Zoom in">
+                                <TextBlock Classes="icon" FontSize="15"
+                                           Text="{x:Static controls:Symbols.Add}"/>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
                     <ToggleButton x:Name="InfoToggle"
                                   Classes="info"
                                   IsChecked="True"
@@ -146,6 +179,57 @@
                                            ToolTip.Tip="{Binding ReaderAbstract}"/>
                             </StackPanel>
                         </Border>
+
+                        <!-- Local-model brief: a draft until the researcher saves it. -->
+                        <Border Margin="0,6,0,0"
+                                Padding="12,8"
+                                CornerRadius="6"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                IsVisible="{Binding HasReaderBrief}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="BRIEF · LOCAL MODEL"
+                                           Classes="section"
+                                           FontSize="9.5"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="{Binding ReaderBrief}"
+                                           Classes="muted"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           MaxLines="10"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding ReaderBrief}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="ghost"
+                                            Content="Save as note"
+                                            Command="{Binding SaveBriefAsNoteCommand}"/>
+                                    <Button Classes="ghost"
+                                            Content="Dismiss"
+                                            Command="{Binding DismissBriefCommand}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="8"
+                                    Margin="0,6,0,0"
+                                    IsVisible="{Binding HasSelectedDocument}">
+                            <Button Classes="ghost"
+                                    Command="{Binding BriefDocumentCommand}"
+                                    IsEnabled="{Binding !IsBriefing}"
+                                    ToolTip.Tip="Ask the local model for a five-bullet brief of this paper">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="icon"
+                                               FontSize="15"
+                                               Text="{x:Static controls:Symbols.AutoAwesome}"/>
+                                    <TextBlock Text="Brief this paper"/>
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="Writing\u2026"
+                                       Classes="meta"
+                                       IsVisible="{Binding IsBriefing}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Grid>
@@ -154,18 +238,61 @@
         <!-- ============ BODY: pages + anchored notes ============ -->
         <Grid Grid.Row="1" ColumnDefinitions="2*,*" Margin="20,14">
 
-            <!-- Pages column -->
-            <ScrollViewer Grid.Column="0">
-                <ItemsControl ItemsSource="{Binding Pages}">
+            <!-- Pages column: search on top, the pages below. -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*">
+
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,10,8">
+                    <TextBox x:Name="PageSearchBox"
+                             Text="{Binding ReaderSearchQuery, Mode=TwoWay}"
+                             Watermark="Search this paper\u2026"
+                             FontSize="12"
+                             Padding="8,5"
+                             KeyDown="OnPageSearchKeyDown"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ReaderSearchLabel}"
+                               Classes="meta"
+                               FontSize="10.5"
+                               VerticalAlignment="Center"
+                               Margin="8,0"
+                               IsVisible="{Binding HasReaderSearch}"/>
+                    <Button Grid.Column="2"
+                            Classes="ghost"
+                            Padding="7,3"
+                            Command="{Binding PreviousReaderMatchCommand}"
+                            ToolTip.Tip="Previous match">
+                        <TextBlock Text="\u2191" FontSize="12"/>
+                    </Button>
+                    <Button Grid.Column="3"
+                            Classes="ghost"
+                            Padding="7,3"
+                            Command="{Binding NextReaderMatchCommand}"
+                            ToolTip.Tip="Next match (Enter)">
+                        <TextBlock Text="\u2193" FontSize="12"/>
+                    </Button>
+                </Grid>
+
+            <ScrollViewer Grid.Row="1"
+                          x:Name="PagesScroller"
+                          HorizontalScrollBarVisibility="Auto"
+                          ScrollChanged="OnPagesScrollChanged"
+                          SizeChanged="OnPagesSizeChanged">
+                <ItemsControl x:Name="PagesList" ItemsSource="{Binding Pages}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:PageViewModel">
-                            <Border Classes="page">
+                            <Border Classes="page" Width="{Binding ZoomWidth}">
                                 <StackPanel Spacing="10">
-                                    <Grid ColumnDefinitions="*,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Text="{Binding HeaderLabel}"
                                                    Classes="section"
                                                    VerticalAlignment="Center"/>
-                                        <Button Grid.Column="1"
+                                        <ToggleButton Grid.Column="1"
+                                                      Classes="info"
+                                                      Margin="0,0,8,0"
+                                                      IsChecked="{Binding ShowText, Mode=TwoWay}"
+                                                      ToolTip.Tip="Show the extracted text instead of the page image">
+                                            <TextBlock Text="Text"/>
+                                        </ToggleButton>
+                                        <Button Grid.Column="2"
                                                 Classes="ghost"
                                                 FontSize="11"
                                                 Padding="8,4"
@@ -179,10 +306,36 @@
                                             </StackPanel>
                                         </Button>
                                     </Grid>
+
+                                    <!-- The page itself: image, captured highlights, drag selection. -->
+                                    <Border IsVisible="{Binding !ShowTextBlock}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="3">
+                                        <controls:PdfPageView PageImage="{Binding Image}"
+                                                              Layout="{Binding Layout}"
+                                                              Spans="{Binding Spans}"
+                                                              SelectionChanged="OnPageSelectionChanged"
+                                                              NoteRequested="OnPageNoteRequested"/>
+                                    </Border>
+
+                                    <TextBlock Text="Rendering page\u2026"
+                                               Classes="meta"
+                                               FontSize="10.5"
+                                               IsVisible="{Binding IsRendering}"/>
+
+                                    <TextBlock Text="{Binding RenderError}"
+                                               Classes="meta"
+                                               FontSize="10.5"
+                                               Foreground="{DynamicResource WarnBrush}"
+                                               TextWrapping="Wrap"
+                                               IsVisible="{Binding HasRenderError}"/>
+
                                     <SelectableTextBlock Text="{Binding Text}"
                                                          TextWrapping="Wrap"
                                                          FontSize="13"
                                                          LineHeight="21"
+                                                         IsVisible="{Binding ShowTextBlock}"
                                                          Foreground="{DynamicResource TextBrush}"
                                                          PointerReleased="OnPageTextPointerReleased"/>
                                 </StackPanel>
@@ -191,6 +344,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
+            </Grid>
 
             <!-- Anchored notes column -->
             <Border Grid.Column="1"

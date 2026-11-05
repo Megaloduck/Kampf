@@ -192,12 +192,39 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 updated_at   TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS document_pages (
+                document_id TEXT NOT NULL,
+                page        INTEGER NOT NULL,
+                text        TEXT NOT NULL,
+                PRIMARY KEY (document_id, page)
+            );
+
+            CREATE TABLE IF NOT EXISTS page_embeddings (
+                document_id  TEXT NOT NULL,
+                page         INTEGER NOT NULL,
+                model        TEXT NOT NULL,
+                dim          INTEGER NOT NULL,
+                content_hash TEXT NOT NULL,
+                vector       BLOB NOT NULL,
+                updated_at   TEXT NOT NULL,
+                PRIMARY KEY (document_id, page)
+            );
+
+            CREATE TABLE IF NOT EXISTS reading_state (
+                document_id TEXT PRIMARY KEY,
+                page        INTEGER NOT NULL,
+                offset      REAL NOT NULL,
+                zoom        REAL NOT NULL,
+                updated_at  TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS ix_notes_updated ON notes (updated_at DESC);
             CREATE INDEX IF NOT EXISTS ix_links_source ON links (source_id);
             CREATE INDEX IF NOT EXISTS ix_links_target ON links (target_id);
             CREATE INDEX IF NOT EXISTS ix_highlights_document ON highlights (document_id);
             CREATE INDEX IF NOT EXISTS ix_suggestions_status ON suggestions (status);
             CREATE INDEX IF NOT EXISTS ix_note_embeddings_model ON note_embeddings (model);
+            CREATE INDEX IF NOT EXISTS ix_page_embeddings_model ON page_embeddings (model);
             CREATE INDEX IF NOT EXISTS ix_chat_messages_created ON chat_messages (created_at);
             """, ct);
 
@@ -207,6 +234,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
         {
             await ExecuteAsync(connection,
                 "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(note_id UNINDEXED, title, body, tokenize = 'porter unicode61');", ct);
+            await ExecuteAsync(connection,
+                "CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(document_id UNINDEXED, page UNINDEXED, text, tokenize = 'porter unicode61');", ct);
             _ftsAvailable = true;
         }
         catch (SqliteException)
@@ -674,6 +703,9 @@ public sealed class SqliteVaultRepository : IVaultRepository
                      {
                          "DELETE FROM links WHERE source_id = $id OR target_id = $id;",
                          "DELETE FROM highlights WHERE document_id = $id;",
+                         "DELETE FROM reading_state WHERE document_id = $id;",
+                         "DELETE FROM document_pages WHERE document_id = $id;",
+                         "DELETE FROM page_embeddings WHERE document_id = $id;",
                          "DELETE FROM documents WHERE id = $id;",
                      })
             {
@@ -682,12 +714,208 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 command.Parameters.AddWithValue("$id", id);
                 await command.ExecuteNonQueryAsync(ct);
             }
+
+            if (_ftsAvailable)
+            {
+                await using var fts = connection.CreateCommand();
+                fts.CommandText = "DELETE FROM pages_fts WHERE document_id = $id;";
+                fts.Parameters.AddWithValue("$id", id);
+                await fts.ExecuteNonQueryAsync(ct);
+            }
         }
         finally
         {
             _writeGate.Release();
         }
     }
+
+    // -------------------------------------------------------------- page text
+
+    public async Task<IReadOnlyList<DocumentPage>> ListDocumentPagesAsync(
+        string documentId,
+        CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT document_id, page, text
+            FROM document_pages WHERE document_id = $doc ORDER BY page;
+            """;
+        command.Parameters.AddWithValue("$doc", documentId);
+
+        var pages = new List<DocumentPage>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            pages.Add(new DocumentPage(reader.GetString(0), reader.GetInt32(1), reader.GetString(2)));
+
+        return pages;
+    }
+
+    /// <summary>Replaces the stored page text of one document and reindexes it for search.</summary>
+    public async Task SaveDocumentPagesAsync(IEnumerable<DocumentPage> pages, CancellationToken ct = default)
+    {
+        var rows = pages.ToList();
+        if (rows.Count == 0)
+            return;
+
+        var documentId = rows[0].DocumentId;
+
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var transaction = connection.BeginTransaction();
+
+            await using (var clear = connection.CreateCommand())
+            {
+                clear.Transaction = transaction;
+                clear.CommandText = "DELETE FROM document_pages WHERE document_id = $doc;";
+                clear.Parameters.AddWithValue("$doc", documentId);
+                await clear.ExecuteNonQueryAsync(ct);
+            }
+
+            if (_ftsAvailable)
+            {
+                await using var clearFts = connection.CreateCommand();
+                clearFts.Transaction = transaction;
+                clearFts.CommandText = "DELETE FROM pages_fts WHERE document_id = $doc;";
+                clearFts.Parameters.AddWithValue("$doc", documentId);
+                await clearFts.ExecuteNonQueryAsync(ct);
+            }
+
+            foreach (var row in rows)
+            {
+                await using (var insert = connection.CreateCommand())
+                {
+                    insert.Transaction = transaction;
+                    insert.CommandText = """
+                        INSERT INTO document_pages (document_id, page, text)
+                        VALUES ($doc, $page, $text)
+                        ON CONFLICT(document_id, page) DO UPDATE SET text = excluded.text;
+                        """;
+                    insert.Parameters.AddWithValue("$doc", row.DocumentId);
+                    insert.Parameters.AddWithValue("$page", row.Page);
+                    insert.Parameters.AddWithValue("$text", row.Text);
+                    await insert.ExecuteNonQueryAsync(ct);
+                }
+
+                if (!_ftsAvailable)
+                    continue;
+
+                await using var fts = connection.CreateCommand();
+                fts.Transaction = transaction;
+                fts.CommandText = "INSERT INTO pages_fts (document_id, page, text) VALUES ($doc, $page, $text);";
+                fts.Parameters.AddWithValue("$doc", row.DocumentId);
+                fts.Parameters.AddWithValue("$page", row.Page);
+                fts.Parameters.AddWithValue("$text", row.Text);
+                await fts.ExecuteNonQueryAsync(ct);
+            }
+
+            // A shorter re-extraction must not leave vectors for pages that no longer exist.
+            await using (var prune = connection.CreateCommand())
+            {
+                prune.Transaction = transaction;
+                prune.CommandText = "DELETE FROM page_embeddings WHERE document_id = $doc AND page > $max;";
+                prune.Parameters.AddWithValue("$doc", documentId);
+                prune.Parameters.AddWithValue("$max", rows.Max(r => r.Page));
+                await prune.ExecuteNonQueryAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> ListDocumentIdsWithoutPagesAsync(CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT d.id
+            FROM documents d
+            WHERE NOT EXISTS (SELECT 1 FROM document_pages p WHERE p.document_id = d.id)
+            ORDER BY d.imported_at;
+            """;
+
+        var ids = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            ids.Add(reader.GetString(0));
+
+        return ids;
+    }
+
+    /// <summary>Full-text search over paper text; each hit names the page that matched.</summary>
+    public async Task<IReadOnlyList<SearchHit>> SearchPagesAsync(
+        string query,
+        int limit = 20,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return Array.Empty<SearchHit>();
+
+        await using var connection = await OpenAsync(ct);
+        var hits = new List<SearchHit>();
+
+        if (_ftsAvailable)
+        {
+            var expression = BuildFtsExpression(query);
+            if (expression.Length > 0)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    SELECT pages_fts.document_id, d.title, pages_fts.page,                            snippet(pages_fts, 2, '[', ']', ' … ', 14)
+                    FROM pages_fts
+                    JOIN documents d ON d.id = pages_fts.document_id
+                    WHERE pages_fts MATCH $q
+                    ORDER BY rank
+                    LIMIT $limit;
+                    """;
+                command.Parameters.AddWithValue("$q", expression);
+                command.Parameters.AddWithValue("$limit", limit);
+
+                try
+                {
+                    await using var reader = await command.ExecuteReaderAsync(ct);
+                    while (await reader.ReadAsync(ct))
+                        hits.Add(PageHit(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.IsDBNull(3) ? string.Empty : reader.GetString(3)));
+                }
+                catch (SqliteException)
+                {
+                    hits.Clear(); // malformed MATCH: fall through to LIKE
+                }
+            }
+        }
+
+        if (hits.Count > 0)
+            return hits;
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT p.document_id, d.title, p.page, substr(p.text, 1, 160)
+                FROM document_pages p
+                JOIN documents d ON d.id = p.document_id
+                WHERE p.text LIKE $like
+                ORDER BY p.page
+                LIMIT $limit;
+                """;
+            command.Parameters.AddWithValue("$like", $"%{query.Trim()}%");
+            command.Parameters.AddWithValue("$limit", limit);
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                hits.Add(PageHit(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3)));
+        }
+
+        return hits;
+    }
+
+    private static SearchHit PageHit(string documentId, string title, int page, string snippet) =>
+        new(documentId, "document", title, $"p. {page} \u00b7 {snippet}", page);
 
     // ------------------------------------------------------------ highlights
 
@@ -717,6 +945,56 @@ public sealed class SqliteVaultRepository : IVaultRepository
         }
 
         return highlights;
+    }
+
+    // -------------------------------------------------------- reading state
+
+    public async Task<ReadingState?> GetReadingStateAsync(string documentId, CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT page, offset, zoom, updated_at FROM reading_state WHERE document_id = $doc;
+            """;
+        command.Parameters.AddWithValue("$doc", documentId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        return new ReadingState(
+            documentId,
+            reader.GetInt32(0),
+            reader.GetDouble(1),
+            reader.GetDouble(2),
+            FromDb(reader.GetString(3))).Sanitized();
+    }
+
+    public async Task SaveReadingStateAsync(ReadingState state, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO reading_state (document_id, page, offset, zoom, updated_at)
+                VALUES ($doc, $page, $offset, $zoom, $updated)
+                ON CONFLICT(document_id) DO UPDATE SET
+                    page = excluded.page, offset = excluded.offset,
+                    zoom = excluded.zoom, updated_at = excluded.updated_at;
+                """;
+            command.Parameters.AddWithValue("$doc", state.DocumentId);
+            command.Parameters.AddWithValue("$page", state.Page);
+            command.Parameters.AddWithValue("$offset", state.Offset);
+            command.Parameters.AddWithValue("$zoom", state.Zoom);
+            command.Parameters.AddWithValue("$updated", ToDb(state.UpdatedAt));
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     public async Task SaveHighlightAsync(Highlight highlight, CancellationToken ct = default)
@@ -927,7 +1205,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             {
                 await using var command = connection.CreateCommand();
                 command.CommandText = """
-                    SELECT note_id, title, snippet(notes_fts, 2, '[', ']', ' \u2026 ', 12)
+                    SELECT note_id, title, snippet(notes_fts, 2, '[', ']', ' … ', 12)
                     FROM notes_fts
                     WHERE notes_fts MATCH $q
                     ORDER BY rank
@@ -1060,6 +1338,88 @@ public sealed class SqliteVaultRepository : IVaultRepository
                     VALUES ($id, $model, $dim, $hash, $vector, $at);
                     """;
                 insert.Parameters.AddWithValue("$id", row.NoteId);
+                insert.Parameters.AddWithValue("$model", row.Model);
+                insert.Parameters.AddWithValue("$dim", row.Vector.Length);
+                insert.Parameters.AddWithValue("$hash", row.ContentHash);
+                insert.Parameters.AddWithValue("$vector", ToBlob(row.Vector));
+                insert.Parameters.AddWithValue("$at", ToDb(DateTimeOffset.Now));
+                await insert.ExecuteNonQueryAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    // ---------------------------------------------------------- page vectors
+
+    public async Task<IReadOnlyList<PageEmbedding>> ListPageEmbeddingsAsync(
+        string model,
+        CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT document_id, page, model, content_hash, vector
+            FROM page_embeddings WHERE model = $model;
+            """;
+        command.Parameters.AddWithValue("$model", model);
+
+        var embeddings = new List<PageEmbedding>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            embeddings.Add(new PageEmbedding(
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                FromBlob((byte[])reader.GetValue(4))));
+        }
+
+        return embeddings;
+    }
+
+    /// <summary>
+    /// Replaces the stored vector of each page. One vector per page, so a
+    /// different model supersedes the old one instead of mixing vector spaces.
+    /// </summary>
+    public async Task SavePageEmbeddingsAsync(
+        IEnumerable<PageEmbedding> embeddings,
+        CancellationToken ct = default)
+    {
+        var rows = embeddings.ToList();
+        if (rows.Count == 0)
+            return;
+
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var transaction = connection.BeginTransaction();
+
+            foreach (var row in rows)
+            {
+                await using (var delete = connection.CreateCommand())
+                {
+                    delete.Transaction = transaction;
+                    delete.CommandText = "DELETE FROM page_embeddings WHERE document_id = $doc AND page = $page;";
+                    delete.Parameters.AddWithValue("$doc", row.DocumentId);
+                    delete.Parameters.AddWithValue("$page", row.Page);
+                    await delete.ExecuteNonQueryAsync(ct);
+                }
+
+                await using var insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT INTO page_embeddings (document_id, page, model, dim, content_hash, vector, updated_at)
+                    VALUES ($doc, $page, $model, $dim, $hash, $vector, $at);
+                    """;
+                insert.Parameters.AddWithValue("$doc", row.DocumentId);
+                insert.Parameters.AddWithValue("$page", row.Page);
                 insert.Parameters.AddWithValue("$model", row.Model);
                 insert.Parameters.AddWithValue("$dim", row.Vector.Length);
                 insert.Parameters.AddWithValue("$hash", row.ContentHash);

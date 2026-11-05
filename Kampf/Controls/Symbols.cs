@@ -36,4 +36,6 @@ public static class Symbols
     public const string RightPanelOpen = "\uF704";
     public const string Settings = "\uE8B8";
     public const string ShieldLock = "\uF686";
+    public const string Add = "\uE145";
+    public const string Remove = "\uE15B";
 }

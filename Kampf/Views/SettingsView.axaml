@@ -76,6 +76,40 @@
                     </StackPanel>
                 </Border>
 
+                <!-- =============================================== publish -->
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.OpenInNew}"
+                                       Foreground="{DynamicResource AccentBrush}"/>
+                            <TextBlock Text="PUBLISH" Classes="section" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <TextBlock Classes="meta"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   LineHeight="17"
+                                   Text="Write every note and paper as a static HTML site into a folder you choose. Wikilinks between notes keep working, papers keep their citation and the notes taken from them. Nothing is uploaded; the vault stays where it is."/>
+
+                        <Button Command="{Binding PublishCommand}"
+                                IsEnabled="{Binding !IsBusy}"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="icon"
+                                           FontSize="15"
+                                           Text="{x:Static controls:Symbols.OpenInNew}"/>
+                                <TextBlock Text="Publish static copy\u2026"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
                 <!-- ================================================= vault -->
                 <Border Background="{DynamicResource PanelAltBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"

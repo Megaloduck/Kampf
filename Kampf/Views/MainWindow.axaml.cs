@@ -13,14 +13,22 @@ namespace Kampf.Views;
 
 public partial class MainWindow : Window
 {
+    private MainViewModel? _viewModel;
+
     public MainWindow()
     {
         InitializeComponent();
+
+        // The reader's place in the open paper is saved on the way out, so the
+        // next launch resumes it.
+        Closing += (_, _) => _ = _viewModel?.SaveReadingStateAsync();
     }
 
     public void SetViewModel(MainViewModel viewModel)
     {
         viewModel.PickPdfFiles = PickPdfFilesAsync;
+        viewModel.PickPublishFolder = PickPublishFolderAsync;
+        _viewModel = viewModel;
         RootView.DataContext = viewModel;
     }
 
@@ -77,6 +85,18 @@ public partial class MainWindow : Window
                 },
             },
         };
+    }
+
+    /// <summary>Folder for the static publish output.</summary>
+    private async Task<string?> PickPublishFolderAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Publish a static copy of the vault",
+            AllowMultiple = false,
+        });
+
+        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
     }
 
     private async Task<IReadOnlyList<string>> PickPdfFilesAsync()

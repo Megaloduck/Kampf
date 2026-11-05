@@ -7,9 +7,14 @@ using Kampf.Domain.ValueObjects;
 namespace Kampf.Application.Services;
 
 /// <summary>Outcome of one suggestion run, shown in the status bar.</summary>
-public sealed record SuggestionBatch(int LinkSuggestions, int TagSuggestions, int ConsideredNotes)
+public sealed record SuggestionBatch(
+    int LinkSuggestions,
+    int TagSuggestions,
+    int ConnectTheDots,
+    int ConsideredNotes,
+    int Clusters)
 {
-    public int Total => LinkSuggestions + TagSuggestions;
+    public int Total => LinkSuggestions + TagSuggestions + ConnectTheDots;
 }
 
 /// <summary>
@@ -24,6 +29,12 @@ public sealed class SuggestionEngine
     private const int MaxLinksPerNote = 2;
     private const int MaxTagsPerRun = 20;
     private const int MaxTagsPerNote = 2;
+
+    /// <summary>Bridges between separate clusters proposed in one run.</summary>
+    private const int MaxBridgesPerRun = 12;
+
+    /// <summary>Isolated notes offered a way back into the graph in one run.</summary>
+    private const int MaxOrphansPerRun = 12;
 
     /// <summary>Below this many notes every pair is compared; above it, candidates are blocked by shared words.</summary>
     private const int FullScanLimit = 1500;
@@ -60,7 +71,7 @@ public sealed class SuggestionEngine
         }
 
         if (notes.Count < 2)
-            return new SuggestionBatch(0, 0, notes.Count);
+            return new SuggestionBatch(0, 0, 0, notes.Count, notes.Count);
 
         var byId = await _index.EnsureAsync(
             notes.Select(n => (n.Id, NoteEmbeddingIndex.TextFor(n))).ToList(),
@@ -111,6 +122,60 @@ public sealed class SuggestionEngine
 
         var linkCount = 0;
         var tagCount = 0;
+        var dotCount = 0;
+        var orphanCount = 0;
+
+        // Phase 3: communities. Components come from accepted/written edges only —
+        // a pending proposal is not an edge, so nothing is wired behind the gate.
+        var components = GraphService.NoteComponents(notes, links);
+        var componentSizes = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var root in components.Values)
+            componentSizes[root] = componentSizes.GetValueOrDefault(root) + 1;
+
+        var bridged = new HashSet<string>(StringComparer.Ordinal);
+
+        // Connect the dots first: a link between two established clusters is the
+        // more interesting proposal, and it wins the pair over an ordinary link.
+        foreach (var (a, b, similarity) in pairs.OrderByDescending(p => p.Similarity))
+        {
+            if (dotCount >= MaxBridgesPerRun)
+                break;
+
+            var idA = notes[a].Id;
+            var idB = notes[b].Id;
+            var rootA = components[idA];
+            var rootB = components[idB];
+
+            if (string.Equals(rootA, rootB, StringComparison.Ordinal))
+                continue; // already one community
+
+            if (componentSizes[rootA] < 2 || componentSizes[rootB] < 2)
+                continue; // a lone note is an orphan, handled below
+
+            if (bridged.Contains(idA) || bridged.Contains(idB))
+                continue; // one bridge per note per run keeps the queue readable
+
+            if (!settledPairs.Add(PairKey(idA, idB)))
+                continue;
+
+            bridged.Add(idA);
+            bridged.Add(idB);
+
+            var percent = (int)Math.Round(similarity * 100, MidpointRounding.AwayFromZero);
+            var shared = SharedTerms(shares[a], shares[b]);
+            var reason = $"connects two separate clusters ({componentSizes[rootA]} and " +
+                         $"{componentSizes[rootB]} notes) \u00b7 {percent}% similar" +
+                         (shared.Count == 0 ? string.Empty : $" \u00b7 shares \u201c{string.Join("\u201d, \u201c", shared)}\u201d");
+
+            await _repo.SaveSuggestionAsync(
+                Suggestion.Create(
+                    SuggestionKind.ConnectDots,
+                    $"Connect the dots: \u201c{notes[a].Title}\u201d \u2194 \u201c{notes[b].Title}\u201d",
+                    SuggestionJson.Serialize(new LinkNotesPayload(idA, idB, reason))),
+                ct);
+            dotCount++;
+        }
+
         var linksPerNote = new Dictionary<string, int>(StringComparer.Ordinal);
         var tagVotes = new Dictionary<int, Dictionary<string, (float Weight, int Notes)>>();
 
@@ -124,6 +189,15 @@ public sealed class SuggestionEngine
 
             if (linksPerNote.GetValueOrDefault(notes[a].Id) >= MaxLinksPerNote ||
                 linksPerNote.GetValueOrDefault(notes[b].Id) >= MaxLinksPerNote)
+                continue;
+
+            // Two established clusters are the connect-the-dots pass's business;
+            // somewhere to start from, a singleton is linked normally.
+            var clusterA = components[notes[a].Id];
+            var clusterB = components[notes[b].Id];
+            if (!string.Equals(clusterA, clusterB, StringComparison.Ordinal) &&
+                componentSizes[clusterA] >= 2 &&
+                componentSizes[clusterB] >= 2)
                 continue;
 
             if (!settledPairs.Add(PairKey(notes[a].Id, notes[b].Id)))
@@ -142,6 +216,45 @@ public sealed class SuggestionEngine
             linkCount++;
             linksPerNote[notes[a].Id] = linksPerNote.GetValueOrDefault(notes[a].Id) + 1;
             linksPerNote[notes[b].Id] = linksPerNote.GetValueOrDefault(notes[b].Id) + 1;
+        }
+
+        // An orphan has no written link and no highlight anchor, so it floats alone.
+        // The ordinary pass above may have filled its neighbours' link budget; this
+        // pass makes sure the isolated note itself is still offered a way in.
+        for (var i = 0; i < notes.Count && orphanCount < MaxOrphansPerRun; i++)
+        {
+            var note = notes[i];
+            if (componentSizes[components[note.Id]] != 1 || note.SourceDocumentId is not null)
+                continue;
+
+            var best = (Similarity: 0f, Other: -1);
+            foreach (var (a, b, similarity) in pairs)
+            {
+                if (a != i && b != i)
+                    continue;
+
+                if (similarity > best.Similarity)
+                    best = (similarity, a == i ? b : a);
+            }
+
+            if (best.Other < 0)
+                continue;
+
+            if (!settledPairs.Add(PairKey(note.Id, notes[best.Other].Id)))
+                continue;
+
+            var percent = (int)Math.Round(best.Similarity * 100, MidpointRounding.AwayFromZero);
+            var shared = SharedTerms(shares[i], shares[best.Other]);
+            var reason = $"this note has no connections \u00b7 {percent}% similar" +
+                         (shared.Count == 0 ? string.Empty : $" \u00b7 shares \u201c{string.Join("\u201d, \u201c", shared)}\u201d");
+
+            await _repo.SaveSuggestionAsync(
+                Suggestion.Create(
+                    SuggestionKind.ConnectDots,
+                    $"Connect unconnected note \u201c{note.Title}\u201d to \u201c{notes[best.Other].Title}\u201d",
+                    SuggestionJson.Serialize(new LinkNotesPayload(note.Id, notes[best.Other].Id, reason))),
+                ct);
+            orphanCount++;
         }
 
         foreach (var (index, votes) in tagVotes.OrderByDescending(v => v.Value.Values.Sum(x => x.Weight)))
@@ -177,16 +290,19 @@ public sealed class SuggestionEngine
             }
         }
 
-        if (linkCount + tagCount > 0)
+        var dots = dotCount + orphanCount;
+
+        if (linkCount + tagCount + dots > 0)
         {
             await _repo.AppendAuditAsync(
                 AuditEntry.Create(
                     "suggestions.generated",
-                    $"{linkCount} link \u00b7 {tagCount} tag from {notes.Count} notes"),
+                    $"{linkCount} link \u00b7 {tagCount} tag \u00b7 {dotCount} bridge \u00b7 " +
+                    $"{orphanCount} orphan from {notes.Count} notes in {componentSizes.Count} cluster(s)"),
                 ct);
         }
 
-        return new SuggestionBatch(linkCount, tagCount, notes.Count);
+        return new SuggestionBatch(linkCount, tagCount, dots, notes.Count, componentSizes.Count);
     }
 
     // --------------------------------------------------------------- internals

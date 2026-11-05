@@ -25,11 +25,16 @@ public sealed class SearchService
 
     private readonly IVaultRepository _repo;
     private readonly NoteEmbeddingIndex? _index;
+    private readonly DocumentPageIndex? _pages;
 
-    public SearchService(IVaultRepository repo, NoteEmbeddingIndex? index = null)
+    public SearchService(
+        IVaultRepository repo,
+        NoteEmbeddingIndex? index = null,
+        DocumentPageIndex? pages = null)
     {
         _repo = repo;
         _index = index;
+        _pages = pages;
     }
 
     public async Task<SearchOutcome> SearchAsync(
@@ -56,6 +61,12 @@ public sealed class SearchService
 
         var lexical = (await _repo.SearchAsync(text, limit * 3, ct)).ToList();
 
+        // The paper side: metadata matches from the document table plus the
+        // pages whose text matched. One row per document, preferring the page
+        // hit because it names where the match is.
+        var pageHits = await _repo.SearchPagesAsync(text, limit);
+        lexical.AddRange(pageHits);
+
         if (tag is not null)
         {
             var allowed = (await _repo.ListNotesAsync(ct))
@@ -63,20 +74,40 @@ public sealed class SearchService
                 .Select(n => n.Id)
                 .ToHashSet(StringComparer.Ordinal);
 
+            // A tag filter narrows notes; papers carry no tags, so they stay.
             lexical = lexical
                 .Where(h => h.Kind != "note" || allowed.Contains(h.Id))
                 .ToList();
         }
 
-        var results = lexical.Take(limit).ToList();
+        var results = DedupeDocuments(lexical).Take(limit).ToList();
 
-        if (_index is null)
+        if (_index is null && _pages is null)
             return new SearchOutcome(results, 0);
 
         try
         {
-            var semantic = await SemanticNotesAsync(text, tag, results, ct);
-            return new SearchOutcome(results.Concat(semantic).ToList(), semantic.Count);
+            var semantic = _index is null
+                ? Array.Empty<SearchHit>()
+                : await SemanticNotesAsync(text, tag, results, ct);
+
+            var semanticPages = Array.Empty<SearchHit>();
+
+            if (_pages is not null)
+            {
+                var documents = (await _repo.ListDocumentsAsync(ct))
+                    .ToDictionary(d => d.Id, StringComparer.Ordinal);
+
+                var seenDocuments = results
+                    .Where(h => h.Kind == "document")
+                    .Select(h => h.Id)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                semanticPages = (await _pages.SemanticAsync(text, documents, seenDocuments, ct)).ToArray();
+            }
+
+            var merged = (IReadOnlyList<SearchHit>)results.Concat(semantic).Concat(semanticPages).ToList();
+            return new SearchOutcome(merged, semantic.Count + semanticPages.Length);
         }
         catch (OperationCanceledException)
         {
@@ -142,6 +173,40 @@ public sealed class SearchService
                 candidate.Note.Title,
                 Preview(candidate.Note.Body)))
             .ToList();
+    }
+
+    /// <summary>
+    /// Collapses several hits of the same paper into the most specific one, so a
+    /// paper that matched by title and by page text appears once, at its page.
+    /// </summary>
+    private static IEnumerable<SearchHit> DedupeDocuments(IEnumerable<SearchHit> hits)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<SearchHit>();
+        var byDocument = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var hit in hits)
+        {
+            if (hit.Kind == "note")
+            {
+                if (seen.Add(hit.Id))
+                    result.Add(hit);
+                continue;
+            }
+
+            if (byDocument.TryGetValue(hit.Id, out var index))
+            {
+                var existing = result[index];
+                if (existing.Page is null && hit.Page is not null)
+                    result[index] = hit; // a page match is the more useful hit
+                continue;
+            }
+
+            byDocument[hit.Id] = result.Count;
+            result.Add(hit);
+        }
+
+        return result;
     }
 
     private static string Preview(string body)

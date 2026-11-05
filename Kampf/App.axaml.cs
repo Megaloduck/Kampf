@@ -48,19 +48,32 @@ public partial class App : Avalonia.Application
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
             var view = new MainView();
-            singleViewPlatform.MainView = view;
 
             if (Vault.IsEncryptedVault())
             {
-                view.Content = new TextBlock
+                // Mobile parity: the same passphrase gate as the desktop shell, as
+                // an overlay on the single view instead of a separate window.
+                var shell = new Grid();
+                var unlock = new UnlockView { IsVisible = true };
+                shell.Children.Add(view);
+                shell.Children.Add(unlock);
+                singleViewPlatform.MainView = shell;
+                view.IsVisible = false;
+
+                unlock.DataContext = new UnlockViewModel(Vault.DefaultRootPath, async passphrase =>
                 {
-                    Text = "This vault is encrypted. Unlocking it is only available in the desktop app for now.",
-                    Margin = new Thickness(24),
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                };
+                    var unlocked = await Vault.OpenAsync(passphrase: passphrase);
+                    await AttachAsync(unlocked, viewModel => view.DataContext = viewModel);
+                    unlock.IsVisible = false;
+                    view.IsVisible = true;
+                });
+
+                unlock.FocusPassphrase();
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+
+            singleViewPlatform.MainView = view;
 
             _ = OpenVaultAsync(
                 viewModel => view.DataContext = viewModel,

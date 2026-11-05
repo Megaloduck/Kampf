@@ -6,7 +6,7 @@ using Avalonia.Android;
 namespace Kampf.Android;
 
 [Activity(
-    Label = "Kampf.Android",
+    Label = "Kampf",
     Theme = "@style/MyTheme.NoActionBar",
     Icon = "@drawable/icon",
     MainLauncher = true,

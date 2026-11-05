@@ -1,4 +1,5 @@
 using Kampf.Application.Abstractions;
+using Kampf.Application.Services;
 using Kampf.Infrastructure.Ai;
 using Kampf.Infrastructure.Embeddings;
 using Kampf.Infrastructure.Pdf;
@@ -25,11 +26,17 @@ public sealed class Vault
     public VaultFileStore Files { get; }
     public PdfPigExtractor PdfExtractor { get; }
 
+    /// <summary>Rendered page images and word boxes for the visual reader.</summary>
+    public IPdfPageRenderer PageRenderer { get; }
+
     /// <summary>Offline hashing embedder unless a local Ollama model is configured.</summary>
     public IEmbeddingProvider Embeddings { get; }
 
     /// <summary>Local chat model, or null when none is configured (chat stays extractive).</summary>
     public IChatModel? Chat { get; }
+
+    /// <summary>Paper page text and page vectors: the searchable body of imported PDFs.</summary>
+    public DocumentPageIndex Pages { get; }
 
     /// <summary>True once the database is encrypted at rest.</summary>
     public bool IsEncrypted { get; private set; }
@@ -46,8 +53,10 @@ public sealed class Vault
         Repository = new SqliteVaultRepository(DatabasePath, NotesDirectory, keyHex);
         Files = new VaultFileStore(AssetsDirectory);
         PdfExtractor = new PdfPigExtractor();
+        PageRenderer = new PdfPageRenderer();
         Embeddings = EmbeddingProviders.CreateFromEnvironment();
         Chat = ChatModels.CreateFromEnvironment();
+        Pages = new DocumentPageIndex(Repository, PdfExtractor, Embeddings);
         _keyHex = keyHex;
         IsEncrypted = keyHex is not null;
     }

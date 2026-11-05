@@ -16,12 +16,26 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <ComboBox Width="136"
+                <ComboBox Width="126"
                           ItemsSource="{Binding SourceFilters}"
-                          SelectedItem="{Binding SourceFilter, Mode=TwoWay}"/>
-                <ComboBox Width="150"
+                          SelectedItem="{Binding SourceFilter, Mode=TwoWay}"
+                          ToolTip.Tip="Show notes only, papers only, or both"/>
+                <ComboBox Width="130"
                           ItemsSource="{Binding TagFilters}"
-                          SelectedItem="{Binding TagFilter, Mode=TwoWay}"/>
+                          SelectedItem="{Binding TagFilter, Mode=TwoWay}"
+                          ToolTip.Tip="Keep only notes carrying this tag"/>
+                <ComboBox Width="112"
+                          ItemsSource="{Binding YearFilters}"
+                          SelectedItem="{Binding YearFilter, Mode=TwoWay}"
+                          ToolTip.Tip="Keep papers of one year and the notes taken from them"/>
+                <ComboBox Width="140"
+                          ItemsSource="{Binding AuthorFilters}"
+                          SelectedItem="{Binding AuthorFilter, Mode=TwoWay}"
+                          ToolTip.Tip="Keep papers by one author and the notes taken from them"/>
+                <CheckBox Content="Unreviewed"
+                          IsChecked="{Binding UnreviewedOnly, Mode=TwoWay}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="Show only the notes the review queue is asking about"/>
                 <TextBlock Text="Click to inspect · double-click to open · drag to arrange · scroll to zoom"
                            Classes="meta"
                            VerticalAlignment="Center"

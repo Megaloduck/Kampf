@@ -92,4 +92,54 @@ public sealed class GraphService
 
         return new GraphModel { Nodes = finalNodes, Edges = edges };
     }
+
+    /// <summary>
+    /// Connected components of the note-to-note graph. Every note maps to the id of
+    /// its component's root; an isolated note is its own component. Document nodes
+    /// are ignored on purpose: a paper never makes two notes neighbours, so a note
+    /// saved without a link or a highlight anchor counts as an orphan.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> NoteComponents(
+        IReadOnlyList<Note> notes,
+        IReadOnlyList<Link> links)
+    {
+        var parent = notes.ToDictionary(n => n.Id, n => n.Id, StringComparer.Ordinal);
+
+        string Find(string id)
+        {
+            while (!string.Equals(parent[id], id, StringComparison.Ordinal))
+            {
+                parent[id] = parent[parent[id]];
+                id = parent[id];
+            }
+
+            return id;
+        }
+
+        void Union(string a, string b)
+        {
+            var rootA = Find(a);
+            var rootB = Find(b);
+            if (string.Equals(rootA, rootB, StringComparison.Ordinal))
+                return;
+
+            // Smallest ordinal id wins so the result does not depend on link order.
+            if (string.CompareOrdinal(rootA, rootB) <= 0)
+                parent[rootB] = rootA;
+            else
+                parent[rootA] = rootB;
+        }
+
+        foreach (var link in links)
+        {
+            if (!parent.ContainsKey(link.SourceId) || !parent.ContainsKey(link.TargetId))
+                continue;
+
+            Union(link.SourceId, link.TargetId);
+        }
+
+        // Materialised first: path compression mutates the dictionary.
+        var ids = notes.Select(n => n.Id).ToArray();
+        return ids.ToDictionary(id => id, Find, StringComparer.Ordinal);
+    }
 }

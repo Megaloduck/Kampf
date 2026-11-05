@@ -7,13 +7,21 @@ using Kampf.Application.Models;
 
 namespace Kampf.ViewModels;
 
-/// <summary>One clickable source under an answer; opens the note it points at.</summary>
+/// <summary>
+/// One clickable source under an answer: opens the note it points at, or the
+/// paper at the cited page when the citation is to a paper's own text.
+/// </summary>
 public sealed class ChatCitationViewModel
 {
-    public ChatCitationViewModel(ChatCitation citation, Func<string, Task> openNote)
+    public ChatCitationViewModel(
+        ChatCitation citation,
+        Func<string, Task> openNote,
+        Func<string, int, string?, Task>? openPage = null)
     {
         Citation = citation;
-        OpenCommand = new AsyncRelayCommand(() => openNote(citation.NoteId));
+        OpenCommand = new AsyncRelayCommand(() => citation.IsPage && openPage is not null
+            ? openPage(citation.DocumentId!, citation.Page ?? 1, citation.Excerpt)
+            : openNote(citation.NoteId));
     }
 
     public ChatCitation Citation { get; }
@@ -27,7 +35,7 @@ public sealed class ChatCitationViewModel
     public bool HasSource => SourceLabel is not null;
 
     public string ToolTip => string.IsNullOrWhiteSpace(Citation.Excerpt)
-        ? "Open this note"
+        ? (Citation.IsPage ? $"Open the paper at page {Citation.Page}" : "Open this note")
         : Citation.Excerpt;
 }
 

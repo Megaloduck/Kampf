@@ -71,6 +71,7 @@ public sealed class SuggestionService
             }
 
             case SuggestionKind.LinkNotes:
+            case SuggestionKind.ConnectDots:
             {
                 var payload = SuggestionJson.Deserialize<LinkNotesPayload>(suggestion.PayloadJson);
                 if (payload is null)

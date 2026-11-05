@@ -213,6 +213,127 @@ public class SuggestionEngineTests
             s => Assert.Contains("similar", s.Title + s.PayloadJson));
     }
 
+    /// <summary>Returns the vector mapped to the first marker found in each text.</summary>
+    private sealed class ScriptedEmbeddings : IEmbeddingProvider
+    {
+        private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
+
+        public string Model => "scripted";
+
+        public float SimilarityFloor => 0.5f;
+
+        public void Map(string marker, float x, float y) =>
+            _vectors[marker] = new[] { x, y };
+
+        public Task<IReadOnlyList<float[]>> EmbedAsync(
+            IReadOnlyList<string> texts,
+            CancellationToken ct = default)
+        {
+            IReadOnlyList<float[]> result = texts
+                .Select(text => _vectors.First(v => text.Contains(v.Key, StringComparison.Ordinal)).Value)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    [Fact]
+    public async Task An_isolated_note_is_offered_a_way_into_the_graph()
+    {
+        var repo = new FakeVaultRepository();
+        var notes = new NoteService(repo);
+        var embeddings = new ScriptedEmbeddings();
+        var engine = new SuggestionEngine(repo, embeddings);
+        var suggestions = new SuggestionService(repo, notes);
+
+        // Three related notes fill each other's link budget first.
+        var hub = await notes.CreateAsync("Hub alpha", "shared words here");
+        var peer = await notes.CreateAsync("Peer beta", "shared words here");
+        var other = await notes.CreateAsync("Peer gamma", "shared words here");
+        var lonely = await notes.CreateAsync("Lonely delta", "shared words here");
+
+        embeddings.Map("alpha", 1f, 0f);
+        embeddings.Map("beta", 0.99f, 0.141f);
+        embeddings.Map("gamma", 0.98f, 0.199f);
+        embeddings.Map("delta", 0.9f, 0.436f);
+
+        var batch = await engine.GenerateAsync();
+
+        Assert.True(batch.LinkSuggestions > 0);
+        Assert.Equal(1, batch.ConnectTheDots);
+        Assert.Equal(4, batch.Clusters);
+
+        var rescue = Assert.Single(repo.Suggestions, s => s.Kind == SuggestionKind.ConnectDots);
+        var payload = SuggestionJson.Deserialize<LinkNotesPayload>(rescue.PayloadJson);
+
+        Assert.NotNull(payload);
+        Assert.Contains("no connections", payload!.Reason);
+        Assert.Contains(lonely.Id, new[] { payload.SourceNoteId, payload.TargetNoteId });
+        Assert.Empty(repo.Links);
+
+        await suggestions.DecideAsync(rescue.Id, accept: true);
+
+        var edge = Assert.Single(repo.Links, l => l.SourceId == lonely.Id || l.TargetId == lonely.Id);
+        Assert.Equal(EdgeKind.AcceptedSuggestion, edge.Kind);
+        Assert.Contains(repo.Audit, a => a.Action == "suggestion.accepted");
+        Assert.DoesNotContain(repo.Suggestions, s => s.Kind == SuggestionKind.ConnectDots && s.IsPending);
+    }
+
+    [Fact]
+    public async Task Two_separate_clusters_are_offered_a_bridge_instead_of_another_inner_link()
+    {
+        var repo = new FakeVaultRepository();
+        var notes = new NoteService(repo);
+        var embeddings = new ScriptedEmbeddings();
+        var engine = new SuggestionEngine(repo, embeddings);
+        var suggestions = new SuggestionService(repo, notes);
+
+        var a = await notes.CreateAsync("Cluster note alpha", "shared words here");
+        var b = await notes.CreateAsync("Cluster note beta", "shared words here");
+        var c = await notes.CreateAsync("Cluster note gamma", "shared words here");
+        var d = await notes.CreateAsync("Cluster note delta", "shared words here");
+
+        embeddings.Map("alpha", 1f, 0f);
+        embeddings.Map("beta", 1f, 0f);
+        embeddings.Map("gamma", 0.9f, 0.43589f);
+        embeddings.Map("delta", 0.9f, 0.43589f);
+
+        await repo.AddLinkAsync(Link.Create(a.Id, b.Id, EdgeKind.Wiki));
+        await repo.AddLinkAsync(Link.Create(c.Id, d.Id, EdgeKind.Wiki));
+
+        var batch = await engine.GenerateAsync();
+
+        Assert.Equal(2, batch.Clusters);
+        Assert.Equal(0, batch.LinkSuggestions);
+        Assert.Equal(2, batch.ConnectTheDots);
+
+        var bridges = repo.Suggestions.Where(s => s.Kind == SuggestionKind.ConnectDots).ToList();
+        Assert.All(bridges, s => Assert.Contains("separate clusters", s.PayloadJson));
+        Assert.All(bridges, s => Assert.Contains("2 and 2 notes", s.PayloadJson));
+
+        await suggestions.DecideAsync(bridges[0].Id, accept: true);
+
+        Assert.Equal(3, repo.Links.Count);
+        Assert.Contains(repo.Links, l => l.Kind == EdgeKind.AcceptedSuggestion);
+    }
+
+    [Fact]
+    public void Components_group_linked_notes_and_leave_isolated_ones_alone()
+    {
+        var a = Note.Create("A");
+        var b = Note.Create("B");
+        var c = Note.Create("C");
+        var lonely = Note.Create("Lonely");
+
+        var components = GraphService.NoteComponents(
+            new[] { a, b, c, lonely },
+            new[] { Link.Create(a.Id, b.Id, EdgeKind.Wiki) });
+
+        Assert.Equal(components[a.Id], components[b.Id]);
+        Assert.NotEqual(components[a.Id], components[c.Id]);
+        Assert.NotEqual(components[a.Id], components[lonely.Id]);
+        Assert.NotEqual(components[c.Id], components[lonely.Id]);
+    }
+
     [Fact]
     public void Hashing_embedder_is_normalized_and_ranks_overlap_above_noise()
     {

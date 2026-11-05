@@ -33,6 +33,7 @@
         </Border>
 
         <ScrollViewer Grid.Row="1">
+          <StackPanel>
             <ItemsControl ItemsSource="{Binding ChatExchanges}" Margin="20,16,20,8">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ChatExchangeViewModel">
@@ -107,6 +108,37 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- The answer as it is being written, before it is stored. -->
+            <StackPanel Spacing="10" Margin="20,0,20,20" IsVisible="{Binding IsChatting}">
+                <Border Background="{DynamicResource AccentDarkBrush}"
+                        CornerRadius="9,9,2,9"
+                        Padding="12,8"
+                        MaxWidth="560"
+                        HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding LiveQuestion}"
+                               FontSize="12.5"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9,9,9,2"
+                        Padding="14,11">
+                    <StackPanel Spacing="9">
+                        <TextBlock Text="Idea-Craft is writing\u2026"
+                                   Classes="meta"
+                                   FontSize="10"
+                                   IsVisible="{Binding !HasLiveAnswer}"/>
+                        <TextBlock Text="{Binding LiveAnswer}"
+                                   FontSize="12.5"
+                                   LineHeight="19.5"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+          </StackPanel>
         </ScrollViewer>
 
         <StackPanel Grid.Row="1"
@@ -132,7 +164,7 @@
                 BorderThickness="0,1,0,0"
                 Padding="20,12">
             <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBox x:Name="QuestionBox"
                              Text="{Binding ChatQuestion, Mode=TwoWay}"
                              Watermark="Ask the vault a question…"
@@ -152,6 +184,15 @@
                                        Foreground="{DynamicResource OnAccentBrush}"/>
                             <TextBlock Text="Ask"/>
                         </StackPanel>
+                    </Button>
+                    <Button Grid.Column="2"
+                            Classes="ghost"
+                            Margin="8,0,0,0"
+                            Padding="12,8"
+                            IsVisible="{Binding IsChatting}"
+                            Command="{Binding CancelChatCommand}"
+                            ToolTip.Tip="Stop this answer">
+                        <TextBlock Text="Stop" FontSize="11"/>
                     </Button>
                 </Grid>
                 <TextBlock Text="{Binding StatusMessage}"

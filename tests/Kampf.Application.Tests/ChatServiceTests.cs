@@ -23,6 +23,21 @@ public class ChatServiceTests
             LastPrompt = userPrompt;
             return Task.FromResult(_reply());
         }
+
+        public async IAsyncEnumerable<string> StreamAsync(
+            string systemPrompt,
+            string userPrompt,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            LastPrompt = userPrompt;
+            var reply = _reply();
+
+            // Two deltas, so the caller has to assemble them in order.
+            var middle = reply.Length / 2;
+            yield return reply[..middle];
+            await Task.Yield();
+            yield return reply[middle..];
+        }
     }
 
     private sealed class OfflineChatModel : IChatModel
@@ -30,6 +45,12 @@ public class ChatServiceTests
         public string Name => "ollama:offline";
 
         public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct = default) =>
+            throw new HttpRequestException("connection refused");
+
+        public IAsyncEnumerable<string> StreamAsync(
+            string systemPrompt,
+            string userPrompt,
+            CancellationToken ct = default) =>
             throw new HttpRequestException("connection refused");
     }
 

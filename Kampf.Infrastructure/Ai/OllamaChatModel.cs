@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Kampf.Application.Abstractions;
 
 namespace Kampf.Infrastructure.Ai;
@@ -10,6 +12,8 @@ namespace Kampf.Infrastructure.Ai;
 /// </summary>
 public sealed class OllamaChatModel : IChatModel, IDisposable
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly HttpClient _http;
     private readonly string _modelName;
 
@@ -30,20 +34,7 @@ public sealed class OllamaChatModel : IChatModel, IDisposable
         string userPrompt,
         CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync(
-            "api/chat",
-            new
-            {
-                model = _modelName,
-                stream = false,
-                options = new { temperature = 0.2 },
-                messages = new object[]
-                {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = userPrompt },
-                },
-            },
-            ct);
+        var response = await _http.PostAsJsonAsync("api/chat", Request(systemPrompt, userPrompt, stream: false), ct);
 
         response.EnsureSuccessStatusCode();
 
@@ -51,9 +42,65 @@ public sealed class OllamaChatModel : IChatModel, IDisposable
         return payload?.Message?.Content ?? string.Empty;
     }
 
+    /// <summary>
+    /// NDJSON stream from <c>api/chat</c>: one JSON object per line, each carrying
+    /// the next token(s) in <c>message.content</c> until <c>done</c> is true.
+    /// </summary>
+    public async IAsyncEnumerable<string> StreamAsync(
+        string systemPrompt,
+        string userPrompt,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/chat")
+        {
+            Content = JsonContent.Create(Request(systemPrompt, userPrompt, stream: true)),
+        };
+
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            ChatResponse? update;
+            try
+            {
+                update = JsonSerializer.Deserialize<ChatResponse>(line, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                continue; // a partial or unexpected line must not end the answer
+            }
+
+            var content = update?.Message?.Content;
+            if (!string.IsNullOrEmpty(content))
+                yield return content;
+
+            if (update?.Done == true)
+                break;
+        }
+    }
+
+    private object Request(string systemPrompt, string userPrompt, bool stream) => new
+    {
+        model = _modelName,
+        stream,
+        options = new { temperature = 0.2 },
+        messages = new object[]
+        {
+            new { role = "system", content = systemPrompt },
+            new { role = "user", content = userPrompt },
+        },
+    };
+
     public void Dispose() => _http.Dispose();
 
-    private sealed record ChatResponse(ChatBody? Message);
+    private sealed record ChatResponse(ChatBody? Message, bool Done = false);
 
     private sealed record ChatBody(string? Content);
 }

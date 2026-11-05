@@ -39,6 +39,12 @@ public enum SuggestionKind
 
     /// <summary>A tag should be applied to a note (Phase 2: AI generated).</summary>
     ApplyTag = 2,
+
+    /// <summary>
+    /// Two notes in separate clusters of the graph would connect, or an isolated
+    /// note would join the web (Phase 3: connect the dots / orphan recovery).
+    /// </summary>
+    ConnectDots = 3,
 }
 
 public enum SuggestionStatus

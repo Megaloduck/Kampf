@@ -125,8 +125,20 @@ public sealed class FakeVaultRepository : IVaultRepository
     public Task DeleteDocumentAsync(string id, CancellationToken ct = default)
     {
         Documents.Remove(id);
+        ReadingStates.Remove(id);
         Highlights.RemoveAll(h => h.DocumentId == id);
         Links.RemoveAll(l => l.SourceId == id || l.TargetId == id);
+        return Task.CompletedTask;
+    }
+
+    public Dictionary<string, ReadingState> ReadingStates { get; } = new(StringComparer.Ordinal);
+
+    public Task<ReadingState?> GetReadingStateAsync(string documentId, CancellationToken ct = default) =>
+        Task.FromResult(ReadingStates.TryGetValue(documentId, out var state) ? state : null);
+
+    public Task SaveReadingStateAsync(ReadingState state, CancellationToken ct = default)
+    {
+        ReadingStates[state.DocumentId] = state;
         return Task.CompletedTask;
     }
 
@@ -191,6 +203,55 @@ public sealed class FakeVaultRepository : IVaultRepository
     {
         foreach (var embedding in embeddings)
             Embeddings[embedding.NoteId] = embedding;
+
+        return Task.CompletedTask;
+    }
+
+    public Dictionary<string, List<DocumentPage>> Pages { get; } = new(StringComparer.Ordinal);
+    public Dictionary<(string DocumentId, int Page), PageEmbedding> PageVectors { get; } = new();
+
+    public Task<IReadOnlyList<DocumentPage>> ListDocumentPagesAsync(string documentId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<DocumentPage>>(
+            Pages.TryGetValue(documentId, out var pages) ? pages.OrderBy(p => p.Page).ToList() : new List<DocumentPage>());
+
+    public Task SaveDocumentPagesAsync(IEnumerable<DocumentPage> pages, CancellationToken ct = default)
+    {
+        foreach (var group in pages.GroupBy(p => p.DocumentId))
+            Pages[group.Key] = group.OrderBy(p => p.Page).ToList();
+
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<string>> ListDocumentIdsWithoutPagesAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<string>>(
+            Documents.Keys.Where(id => !Pages.ContainsKey(id) || Pages[id].Count == 0).ToList());
+
+    public Task<IReadOnlyList<SearchHit>> SearchPagesAsync(string query, int limit = 20, CancellationToken ct = default)
+    {
+        var hits = Pages
+            .Where(p => Documents.ContainsKey(p.Key))
+            .SelectMany(p => p.Value)
+            .Where(p => p.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Take(limit)
+            .Select(p => new SearchHit(
+                p.DocumentId,
+                "document",
+                Documents[p.DocumentId].Title,
+                $"p. {p.Page} \u00b7 {p.Text}",
+                p.Page))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<SearchHit>>(hits);
+    }
+
+    public Task<IReadOnlyList<PageEmbedding>> ListPageEmbeddingsAsync(string model, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PageEmbedding>>(
+            PageVectors.Values.Where(e => e.Model == model).ToList());
+
+    public Task SavePageEmbeddingsAsync(IEnumerable<PageEmbedding> embeddings, CancellationToken ct = default)
+    {
+        foreach (var embedding in embeddings)
+            PageVectors[(embedding.DocumentId, embedding.Page)] = embedding;
 
         return Task.CompletedTask;
     }
