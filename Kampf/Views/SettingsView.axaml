@@ -12,7 +12,7 @@
     <Grid RowDefinitions="Auto,*">
 
         <Border Grid.Row="0"
-                Padding="20,14,20,12"
+                Padding="24,16,24,12"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto">
@@ -24,7 +24,7 @@
                                    Foreground="{DynamicResource AccentBrush}"/>
                         <TextBlock Text="SETTINGS" Classes="section" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Appearance, vault encryption and the local models this vault talks to."
+                    <TextBlock Text="Appearance, vault encryption and where the vault lives."
                                Classes="meta"
                                FontSize="10.5"
                                TextWrapping="Wrap"/>
@@ -42,7 +42,7 @@
         </Border>
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Margin="20,16,20,28" Spacing="14">
+            <StackPanel Margin="24,16,24,28" Spacing="14" MaxWidth="820" HorizontalAlignment="Left">
 
                 <!-- ============================================ appearance -->
                 <Border Background="{DynamicResource PanelAltBrush}"
@@ -76,37 +76,95 @@
                     </StackPanel>
                 </Border>
 
-                <!-- =============================================== publish -->
+                <!-- ============================================ shortcuts -->
                 <Border Background="{DynamicResource PanelAltBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="9"
                         Padding="16,14">
                     <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Classes="icon"
-                                       FontSize="15"
-                                       Text="{x:Static controls:Symbols.OpenInNew}"
-                                       Foreground="{DynamicResource AccentBrush}"/>
-                            <TextBlock Text="PUBLISH" Classes="section" VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <TextBlock Classes="meta"
-                                   FontSize="11"
-                                   TextWrapping="Wrap"
-                                   LineHeight="17"
-                                   Text="Write every note and paper as a static HTML site into a folder you choose. Wikilinks between notes keep working, papers keep their citation and the notes taken from them. Nothing is uploaded; the vault stays where it is."/>
-
-                        <Button Command="{Binding PublishCommand}"
-                                IsEnabled="{Binding !IsBusy}"
-                                HorizontalAlignment="Left">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Classes="icon"
                                            FontSize="15"
-                                           Text="{x:Static controls:Symbols.OpenInNew}"/>
-                                <TextBlock Text="Publish static copy\u2026"/>
+                                           Text="{x:Static controls:Symbols.Keyboard}"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="KEYBOARD SHORTCUTS" Classes="section" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Button>
+                            <Button Grid.Column="1"
+                                    Classes="ghost"
+                                    Padding="10,3"
+                                    FontSize="11"
+                                    Command="{Binding ResetShortcutsCommand}"
+                                    ToolTip.Tip="Put every shortcut back to its default">
+                                <TextBlock Text="Reset all"/>
+                            </Button>
+                        </Grid>
+
+                        <TextBlock Text="Press Change, then the chord you want. A shortcut needs Ctrl or Alt, or an F-key on its own; Escape cancels and keeps the old chord."
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   TextWrapping="Wrap"
+                                   LineHeight="16"/>
+
+                        <ItemsControl ItemsSource="{Binding Shortcuts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShortcutRowViewModel">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}" FontSize="12"/>
+                                            <TextBlock Text="{Binding Detail}"
+                                                       Classes="meta"
+                                                       FontSize="10"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1"
+                                                Background="{DynamicResource PanelBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="8,3"
+                                                Margin="10,0"
+                                                MinWidth="92"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CaptureLabel}"
+                                                       FontFamily="Consolas, Menlo, monospace"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    Spacing="4"
+                                                    VerticalAlignment="Center">
+                                            <Button Classes="ghost"
+                                                    Padding="10,3"
+                                                    FontSize="11"
+                                                    IsVisible="{Binding !IsCapturing}"
+                                                    Command="{Binding BeginCaptureCommand}"
+                                                    ToolTip.Tip="Press the new chord">
+                                                <TextBlock Text="Change"/>
+                                            </Button>
+                                            <Button Classes="ghost"
+                                                    Padding="10,3"
+                                                    FontSize="11"
+                                                    IsVisible="{Binding IsCapturing}"
+                                                    Command="{Binding CancelCaptureCommand}"
+                                                    ToolTip.Tip="Keep the current shortcut">
+                                                <TextBlock Text="Cancel"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding ShortcutMessage}"
+                                   IsVisible="{Binding HasShortcutMessage}"
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -222,33 +280,6 @@
                             <TextBlock Text="DATABASE" Classes="section" FontSize="9.5" Margin="0,6,0,0"/>
                             <TextBlock Text="{Binding DatabaseFile}" Classes="muted" FontSize="11" TextWrapping="Wrap"/>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
-
-                <!-- ================================================ models -->
-                <Border Background="{DynamicResource PanelAltBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="9"
-                        Padding="16,14">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="MODELS" Classes="section"/>
-                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto">
-                            <TextBlock Text="Embeddings" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding EmbeddingLabel}" Classes="meta" FontSize="11"/>
-                            <TextBlock Grid.Row="1" Text="Ask" FontSize="12" Margin="0,4,0,0"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1"
-                                       Text="{Binding ChatModelLabel}"
-                                       Classes="meta"
-                                       FontSize="11"
-                                       Margin="0,4,0,0"
-                                       TextWrapping="Wrap"/>
-                        </Grid>
-                        <TextBlock Text="Both are configured with environment variables (KAMPF_OLLAMA_URL, KAMPF_EMBEDDING_MODEL, KAMPF_CHAT_MODEL) and run locally; nothing leaves this machine."
-                                   Classes="meta"
-                                   FontSize="10.5"
-                                   TextWrapping="Wrap"
-                                   LineHeight="16"/>
                     </StackPanel>
                 </Border>
 

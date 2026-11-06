@@ -74,15 +74,26 @@ public sealed class PdfPageRendererTests : IDisposable
         Assert.True(image.Height > 100);
         Assert.Equal(image.Width * image.Height * 4, image.Pixels.Length);
 
-        var dark = 0;
+        long dark = 0, light = 0;
         for (var i = 0; i < image.Pixels.Length; i += 4)
         {
             Assert.Equal(255, image.Pixels[i + 3]);
-            if (image.Pixels[i] < 128 && image.Pixels[i + 1] < 128 && image.Pixels[i + 2] < 128)
+
+            var luminance = (image.Pixels[i] + image.Pixels[i + 1] + image.Pixels[i + 2]) / 3;
+            if (luminance < 128)
                 dark++;
+            else if (luminance > 200)
+                light++;
         }
 
         Assert.True(dark > 0, "the rendered page should contain text pixels");
+
+        // An unpainted page background is transparent, not white; rendering it
+        // opaque without compositing onto paper yields a black sheet that passes
+        // a dark-pixels check while being unreadable.
+        Assert.True(
+            light > image.Width * image.Height * 0.9,
+            $"the page should be white paper, but only {light} of {image.Width * image.Height} pixels are light");
     }
 
     [Fact]

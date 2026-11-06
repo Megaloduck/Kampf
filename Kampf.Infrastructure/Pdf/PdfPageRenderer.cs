@@ -89,11 +89,10 @@ public sealed class PdfPageRenderer : IPdfPageRenderer
                 var width = pageReader.GetPageWidth();
                 var height = pageReader.GetPageHeight();
 
-                // BGRA, with the alpha byte left at zero: mark it opaque so the
-                // page image never renders as a transparent sheet.
+                // BGRA. PDFium leaves the page background transparent, so the
+                // bitmap has to be laid onto white paper before it is opaque.
                 var pixels = pageReader.GetImage();
-                for (var i = 3; i < pixels.Length; i += 4)
-                    pixels[i] = 255;
+                CompositeOntoPaper(pixels);
 
                 return new PdfPageImage(page, width, height, pixels);
             }
@@ -103,6 +102,36 @@ public sealed class PdfPageRenderer : IPdfPageRenderer
             }
         }, ct);
     }
+
+    /// <summary>
+    /// Composites a page onto white paper and makes every pixel opaque.
+    ///
+    /// An unpainted pixel comes back from PDFium as (0,0,0,0): transparent, not
+    /// white. Setting only the alpha byte to 255 turns the entire sheet black,
+    /// with black ink on it, which is unreadable under every theme. Blending
+    /// each channel towards white by its coverage gives the paper a page is
+    /// meant to sit on, and leaves fully opaque ink untouched.
+    /// </summary>
+    private static void CompositeOntoPaper(byte[] bgra)
+    {
+        for (var i = 0; i + 3 < bgra.Length; i += 4)
+        {
+            var alpha = bgra[i + 3];
+
+            if (alpha != 255)
+            {
+                var paper = 255 - alpha;
+
+                bgra[i] = Blend(bgra[i], alpha, paper);
+                bgra[i + 1] = Blend(bgra[i + 1], alpha, paper);
+                bgra[i + 2] = Blend(bgra[i + 2], alpha, paper);
+                bgra[i + 3] = 255;
+            }
+        }
+    }
+
+    private static byte Blend(byte ink, int alpha, int paper) =>
+        (byte)((ink * alpha + 255 * paper) / 255);
 
     public void Forget(string filePath)
     {

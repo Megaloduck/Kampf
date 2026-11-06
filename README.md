@@ -57,15 +57,24 @@ that do not need a sync transport: publishing, an Android head, and a measured
   about.
 - **Idea-Craft chat** — a fourth workspace tab: ask "what connects X and Y?" and
   get an answer built only from retrieved notes *and paper pages*, with
-  clickable citations (note title, source paper, page). A page citation opens
-  the reader at that page. With a local model configured the answer is prose
-  that must cite `[n]`, streamed in as it is written (with a Stop button); with
-  none, the answer *is* the cited passages — it never synthesises. A model
-  answer with no valid citation is labelled unverified, and an unreachable model
-  falls back to the passages with a warning. The last three exchanges are given
-  to the model as conversation context, so follow-up questions work, but facts
-  still have to come from the numbered sources. Every turn is stored in
-  `chat_messages` and restored on restart.
+  clickable citations (note title, source paper, page). A linking question is
+  retrieved once per subject, so neither half can crowd the other out, and the
+  links, shared tags and shared papers between the cited notes are handed over as
+  evidence of *how* they connect — the vault's own structure, not a guess. A
+  citation quotes the passage that matched rather than the note's opening lines,
+  and `[n]` markers in the prose are clickable; a page citation opens the reader
+  at that page. With a local model configured the answer is prose that must cite
+  `[n]`, streamed in as it is written (with a Stop button that keeps the question
+  and the partial answer, marked as unfinished); with none, the answer *is* the
+  recorded connections and cited passages — it never synthesises. A model answer
+  with no valid citation is labelled unverified, and an unreachable model falls
+  back to the passages with a warning; because the warning is stored with the
+  turn, neither is lost on restart. The last three exchanges are given to the
+  model as conversation context, so follow-up questions work, but facts still
+  have to come from the numbered sources. The newest answer ends with up to
+  three clickable questions to ask next, and the transcript can be cleared
+  without touching the vault. Every turn is stored in `chat_messages` and restored on
+  restart.
 - **Hybrid search** — SQLite FTS5 over note bodies and over the text of every
   imported paper page (with a `LIKE` fallback) plus `tag:name` filtering, then a
   semantic pass: notes and pages whose cached vector is close to the query
@@ -99,7 +108,7 @@ graph canvas and markdown preview follow the active theme.
   backed by Avalonia's text history (`Ctrl+Z` / `Ctrl+Y` also work). They stay
   disabled until a note is loaded and its history has something to undo.
   History starts fresh per note, so undo can never pull text from another note.
-- **Resizable panels** — the note list and the review queue are separated from
+- **Resizable panels** — the navigator and the review queue are separated from
   the workspace by draggable splitters (hover highlights the grip, minimum
   widths keep both readable). Each has its own header button to hide it and
   bring it back with the width you last dragged it to.
@@ -113,9 +122,22 @@ graph canvas and markdown preview follow the active theme.
   SQLCipher with a key derived from your passphrase. On the next launch the app
   asks for the passphrase before the shell exists; a wrong one is rejected
   without opening the database.
-- **Settings** — the gear button in the header opens a settings view: theme,
-  vault encryption (enable / change passphrase / turn off), markdown mirror
-  toggle, the active embedding and chat backends, and where the vault lives.
+- **Shell** — an icon rail switches workspaces: Library, Graph, Idea Craft, LLM
+  Configuration, Data sharing and Connection, Extension, Trash bin and Settings.
+  The Library navigator groups notes into folders by their first tag, with the
+  papers in their own folder; a folder's `+` starts a note that already carries
+  that tag. Extension and Trash bin are honest empty states: this build has no
+  extension system, and deleting a note or paper is permanent.
+- **Settings** — theme, vault encryption (enable / change passphrase / turn
+  off), the markdown mirror toggle, rebindable keyboard shortcuts and where the
+  vault lives. The local model is configured on its own LLM Configuration page
+  and publishing on Data sharing.
+- **Rebindable shortcuts** — every shell shortcut is a row in Settings: press
+  *Change*, then the chord (Ctrl or Alt, or an F-key on its own); a gesture
+  another action already uses is refused rather than silently swapped, and
+  *Reset all* restores the defaults. Chords match exactly and keep working
+  inside the editor, bare keys wait until no text box has focus, and the map is
+  saved in `app-settings.json` beside the vault.
 
 ## Architecture
 
@@ -139,7 +161,7 @@ can be tested with in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 122 tests across four projects
+dotnet test                      # 160 tests across four projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux. The Android
@@ -166,6 +188,7 @@ Kampf/
   notes/            one markdown file per note, YAML front matter
   assets/           imported PDFs
   backups/          kampf-<timestamp>.db taken before every encryption change
+  chat-model.json   the local model chosen in Settings (server URL, model, protocol)
 ```
 
 Set `KAMPF_VAULT` to use a different folder (portable vault or a second vault).
@@ -194,10 +217,25 @@ the gate that applies them. Two embedding backends implement the same port:
 | `kampf-hash-512` | default | Dependency-free signed feature hashing over words and word pairs. Lexical overlap, works offline, no model to install. |
 | `ollama:<model>` | `KAMPF_OLLAMA_URL` + `KAMPF_EMBEDDING_MODEL` are set | Semantic vectors from a local Ollama server, e.g. `http://localhost:11434` with `nomic-embed-text`. |
 
-The chat model is separate: set `KAMPF_OLLAMA_URL` + `KAMPF_CHAT_MODEL` (e.g.
-`llama3.2`) and Idea-Craft answers with prose that cites the numbered sources it
-was given. Leave it unset and the same retrieval runs, but the answer is the
-passages themselves. Either way nothing is sent to a hosted API.
+The chat model is separate, and either backend works locally:
+
+| Backend | Configuration | Notes |
+| --- | --- | --- |
+| OpenAI-compatible | LLM Configuration, or `KAMPF_CHAT_URL` + `KAMPF_CHAT_MODEL` | Any local OpenAI-shaped server (LM Studio, llama.cpp, vLLM). The URL is the API root; `/v1` is added when omitted. |
+| `ollama:<model>` | LLM Configuration (tick *Ollama*), or `KAMPF_OLLAMA_URL` + `KAMPF_CHAT_MODEL` | e.g. `http://localhost:11434` with `llama3.2`. |
+
+LLM Configuration is the normal way to set this: paste the server URL, press
+*Detect models* to list exactly what it serves (picking the id instead of typing
+it), choose one, then *Apply* — which takes effect immediately, with no restart,
+and is remembered in `chat-model.json` beside the vault. *Check* reports whether
+the server is reachable and serving that model, because a configured model that
+was never pulled otherwise fails as a 404 at question time. *Clear* goes back to
+answers made of the cited passages.
+
+The environment variables still work and are used when nothing has been saved in
+Settings, so an existing setup keeps running. Either way Idea-Craft answers with
+prose that cites the numbered sources it was given, and nothing is sent to a
+hosted API.
 
 Each backend publishes its own similarity floor, because lexical and semantic
 cosines do not live on the same scale. Vectors are stored in `note_embeddings`

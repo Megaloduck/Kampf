@@ -21,4 +21,12 @@ public interface IChatModel
         string systemPrompt,
         string userPrompt,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks that the model named in <see cref="Name"/> can answer right now.
+    /// Returns null when it can, or a sentence explaining what to fix. A model
+    /// that is configured but not pulled fails as a 404 at question time, which
+    /// looks like a bug instead of a setup step.
+    /// </summary>
+    Task<string?> ProbeAsync(CancellationToken ct = default) => Task.FromResult<string?>(null);
 }

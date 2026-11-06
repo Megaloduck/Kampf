@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
@@ -17,19 +18,26 @@ using CommunityToolkit.Mvvm.Input;
 using Kampf.Application.Abstractions;
 using Kampf.Application.Models;
 using Kampf.Application.Services;
+using Kampf.Controls;
 using Kampf.Domain.Entities;
 using Kampf.Domain.ValueObjects;
 using Kampf.Infrastructure;
+using Kampf.Infrastructure.Ai;
 
 namespace Kampf.ViewModels;
 
 public enum VaultView
 {
+    Library,
     Graph,
     Editor,
     Reader,
     Chat,
     Settings,
+    LlmConfig,
+    DataSharing,
+    Extensions,
+    Trash,
 }
 
 /// <summary>
@@ -114,11 +122,22 @@ public partial class MainViewModel : ViewModelBase
         _briefService = new DocumentBriefService(vault.Chat);
         _publishService = new PublishService(vault.Repository);
 
+        // A saved theme is applied before the first frame the window draws.
+        IsDarkTheme = AppSettings.Load(vault.RootPath).IsDarkTheme;
+
+        // Show whatever Settings saved last time, so the fields match the model
+        // that is actually answering.
+        var savedModel = ChatModelSettings.Load(vault.RootPath);
+        ChatServerUrl = savedModel.ServerUrl ?? string.Empty;
+        ChatModelName = savedModel.Model ?? string.Empty;
+        ChatUsesOllama = savedModel.Protocol == ChatProtocol.Ollama;
+
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
         TagFilters = new ObservableCollection<string> { AllTags };
         YearFilters = new ObservableCollection<string> { AllYears };
         AuthorFilters = new ObservableCollection<string> { AllAuthors };
+        LoadShortcuts();
         SyncSecurityState();
     }
 
@@ -157,6 +176,16 @@ public partial class MainViewModel : ViewModelBase
     {
         if (Avalonia.Application.Current is { } application)
             application.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
+
+        try
+        {
+            // Keep the window's own preferences when only the theme changed.
+            (AppSettings.Load(_vault.RootPath) with { IsDarkTheme = value }).Save(_vault.RootPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Remembering the theme is a convenience; failing to is not an error.
+        }
     }
 
     [RelayCommand]
@@ -167,14 +196,162 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private int _pendingCount;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView), nameof(IsChatView), nameof(IsSettingsView))]
-    private VaultView _view = VaultView.Graph;
+    [NotifyPropertyChangedFor(
+        nameof(IsLibraryView), nameof(IsGraphView), nameof(IsEditorView), nameof(IsReaderView),
+        nameof(IsChatView), nameof(IsSettingsView), nameof(IsLlmConfigView), nameof(IsDataSharingView),
+        nameof(IsExtensionsView), nameof(IsTrashView),
+        nameof(IsLibraryActive), nameof(IsGraphActive), nameof(IsChatActive), nameof(IsLlmConfigActive),
+        nameof(IsDataSharingActive), nameof(IsExtensionsActive), nameof(IsTrashActive), nameof(IsSettingsActive))]
+    private VaultView _view = VaultView.Library;
 
+    public bool IsLibraryView => View == VaultView.Library;
     public bool IsGraphView => View == VaultView.Graph;
     public bool IsEditorView => View == VaultView.Editor;
     public bool IsReaderView => View == VaultView.Reader;
     public bool IsChatView => View == VaultView.Chat;
     public bool IsSettingsView => View == VaultView.Settings;
+    public bool IsLlmConfigView => View == VaultView.LlmConfig;
+    public bool IsDataSharingView => View == VaultView.DataSharing;
+    public bool IsExtensionsView => View == VaultView.Extensions;
+    public bool IsTrashView => View == VaultView.Trash;
+
+    /// <summary>The note editor and the reader share the rail's Library entry.</summary>
+    public bool IsLibraryActive => View is VaultView.Library or VaultView.Editor or VaultView.Reader;
+    public bool IsGraphActive => View == VaultView.Graph;
+    public bool IsChatActive => View == VaultView.Chat;
+    public bool IsLlmConfigActive => View == VaultView.LlmConfig;
+    public bool IsDataSharingActive => View == VaultView.DataSharing;
+    public bool IsExtensionsActive => View == VaultView.Extensions;
+    public bool IsTrashActive => View == VaultView.Trash;
+    public bool IsSettingsActive => View == VaultView.Settings;
+
+    /// <summary>Leaving Settings abandons a half-finished shortcut change.</summary>
+    partial void OnViewChanged(VaultView value)
+    {
+        if (value == VaultView.Settings || CapturingShortcut is null)
+            return;
+
+        CapturingShortcut.IsCapturing = false;
+        CapturingShortcut = null;
+    }
+
+    // ------------------------------------------------------ keyboard shortcuts
+
+    public ShortcutMap Keymap { get; } = ShortcutMap.CreateDefault();
+
+    public ObservableCollection<ShortcutRowViewModel> Shortcuts { get; } = new();
+
+    /// <summary>The row waiting for a chord, if Settings is rebinding one.</summary>
+    [ObservableProperty] private ShortcutRowViewModel? _capturingShortcut;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasShortcutMessage))]
+    private string _shortcutMessage = string.Empty;
+
+    public bool HasShortcutMessage => ShortcutMessage.Length > 0;
+
+    private void LoadShortcuts()
+    {
+        Keymap.ResetToDefaults();
+        Keymap.Apply(AppSettings.Load(_vault.RootPath).Shortcuts);
+
+        Shortcuts.Clear();
+        foreach (var action in ShortcutMap.RebindableActions)
+            Shortcuts.Add(new ShortcutRowViewModel(action, this));
+
+        RefreshShortcutGestures();
+    }
+
+    private void RefreshShortcutGestures()
+    {
+        foreach (var row in Shortcuts)
+            row.Gesture = Keymap.Describe(row.Action);
+    }
+
+    public void BeginShortcutCapture(ShortcutRowViewModel row)
+    {
+        foreach (var other in Shortcuts)
+            other.IsCapturing = ReferenceEquals(other, row);
+
+        CapturingShortcut = row;
+        ShortcutMessage = $"{row.Title}: press the new keys, or Escape to cancel.";
+    }
+
+    public void CancelShortcutCapture()
+    {
+        if (CapturingShortcut is { } row)
+            row.IsCapturing = false;
+
+        CapturingShortcut = null;
+        ShortcutMessage = "Shortcut unchanged.";
+    }
+
+    /// <summary>
+    /// Feeds one key press to the row being rebound. Returns whether the shell
+    /// should swallow the key: a modifier on the way to a chord is left alone so
+    /// the rest of the chord arrives.
+    /// </summary>
+    public bool CaptureShortcutKey(Key key, KeyModifiers modifiers)
+    {
+        if (CapturingShortcut is not { } row)
+            return false;
+
+        if (ShortcutMap.IsModifierKey(key))
+            return false;
+
+        if (key == Key.Escape && modifiers == KeyModifiers.None)
+        {
+            CancelShortcutCapture();
+            return true;
+        }
+
+        if (!ShortcutMap.IsBindable(key, modifiers))
+        {
+            ShortcutMessage = "Use a Ctrl or Alt chord, or an F-key on its own. Escape cancels.";
+            return true;
+        }
+
+        if (!Keymap.TrySet(row.Action, key, modifiers, out var conflict))
+        {
+            ShortcutMessage = $"{ShortcutMap.Describe(key, modifiers)} is already used by {ShortcutRowViewModel.TitleFor(conflict)}.";
+            row.IsCapturing = false;
+            CapturingShortcut = null;
+            return true;
+        }
+
+        row.IsCapturing = false;
+        CapturingShortcut = null;
+        RefreshShortcutGestures();
+        SaveShortcuts();
+        ShortcutMessage = $"{row.Title} is now {Keymap.Describe(row.Action)}.";
+        return true;
+    }
+
+    [RelayCommand]
+    private void ResetShortcuts()
+    {
+        Keymap.ResetToDefaults();
+
+        if (CapturingShortcut is { } row)
+            row.IsCapturing = false;
+
+        CapturingShortcut = null;
+        RefreshShortcutGestures();
+        SaveShortcuts();
+        ShortcutMessage = "Shortcuts are back to their defaults.";
+    }
+
+    private void SaveShortcuts()
+    {
+        try
+        {
+            (AppSettings.Load(_vault.RootPath) with { Shortcuts = Keymap.ToSettings() }).Save(_vault.RootPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShortcutMessage = "Shortcuts work for this session but could not be saved: " + ex.Message;
+        }
+    }
 
     // ---------------------------------------------------------------- settings
 
@@ -241,10 +418,11 @@ public partial class MainViewModel : ViewModelBase
         ClearPassphraseFields();
         SettingsError = string.Empty;
         SettingsMessage = "";
+        ShortcutMessage = string.Empty;
     }
 
     [RelayCommand]
-    private void CloseSettings() => View = VaultView.Graph;
+    private void CloseSettings() => ShowLibrary();
 
     /// <summary>
     /// Phase 4 publishing: writes a static, self-contained copy of the notes and
@@ -459,6 +637,147 @@ public partial class MainViewModel : ViewModelBase
     public string ChatModelLabel => _chatService.ModelLabel;
     public bool HasLocalChatModel => _chatService.HasLocalModel;
 
+    /// <summary>What the model check said: reachable, missing, or not configured.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChatModelHealth))]
+    private string _chatModelHealth = string.Empty;
+
+    public bool HasChatModelHealth => ChatModelHealth.Length > 0;
+
+    // ------------------------------------------- settings: the answering model
+
+    /// <summary>The local server typed in Settings, e.g. <c>http://localhost:1234/v1</c>.</summary>
+    [ObservableProperty] private string _chatServerUrl = string.Empty;
+
+    /// <summary>The model id the server reports, e.g. <c>ornith-1.0-9b</c>.</summary>
+    [ObservableProperty] private string _chatModelName = string.Empty;
+
+    /// <summary>True when the URL is a native Ollama server rather than an OpenAI-shaped one.</summary>
+    [ObservableProperty] private bool _chatUsesOllama;
+
+    /// <summary>The models the last Detect found, so the exact id can be picked.</summary>
+    public ObservableCollection<ChatModelChoiceViewModel> ChatModelChoices { get; } = new();
+
+    [ObservableProperty] private bool _hasChatModelChoices;
+
+    /// <summary>Applies the server and model typed in Settings, and remembers them.</summary>
+    [RelayCommand]
+    private void ApplyChatModel()
+    {
+        var url = ChatServerUrl.Trim();
+        var model = ChatModelName.Trim();
+
+        if (url.Length == 0 && model.Length == 0)
+        {
+            ClearChatModel();
+            return;
+        }
+
+        var settings = new ChatModelSettings(
+            url,
+            model,
+            ChatUsesOllama ? ChatProtocol.Ollama : ChatProtocol.OpenAiCompatible);
+
+        if (!settings.TryGetEndpoint(out _))
+        {
+            ChatModelHealth = "That server URL is not an address, e.g. http://localhost:1234/v1";
+            return;
+        }
+
+        if (model.Length == 0)
+        {
+            ChatModelHealth = "Name the model the server serves \u2014 Detect models lists them.";
+            return;
+        }
+
+        settings.Save(_vault.RootPath);
+        UseChatModel(settings.CreateModel(), $"Idea-Craft now answers with {model}.");
+    }
+
+    /// <summary>Forgets the saved server; answers become the cited passages again.</summary>
+    [RelayCommand]
+    private void ClearChatModel()
+    {
+        ChatModelSettings.Clear(_vault.RootPath);
+        ChatServerUrl = string.Empty;
+        ChatModelName = string.Empty;
+        ChatModelChoices.Clear();
+        HasChatModelChoices = false;
+        UseChatModel(null, "Model cleared \u2014 answers are the cited passages themselves.");
+    }
+
+    private void UseChatModel(IChatModel? model, string status)
+    {
+        // The vault owns the model; chat and briefs follow it so the whole app
+        // answers with the same one.
+        _vault.UseChatModel(model);
+        _chatService.UseModel(model);
+        _briefService.UseModel(model);
+
+        OnPropertyChanged(nameof(ChatModelLabel));
+        OnPropertyChanged(nameof(HasLocalChatModel));
+
+        ChatModelHealth = model is null ? string.Empty : "Saved. Press Check to test the connection.";
+        StatusMessage = status;
+    }
+
+    [RelayCommand]
+    private void UseDetectedModel(string name)
+    {
+        ChatModelName = name;
+        ChatModelHealth = $"Using \u201c{name}\u201d \u2014 press Apply to save it.";
+    }
+
+    /// <summary>
+    /// Asks the server which models it serves. The id has to match what it
+    /// reports exactly, and nothing is more error-prone than typing that by hand.
+    /// </summary>
+    [RelayCommand]
+    private async Task DetectChatModelsAsync()
+    {
+        var protocol = ChatUsesOllama ? ChatProtocol.Ollama : ChatProtocol.OpenAiCompatible;
+
+        ChatModelChoices.Clear();
+        HasChatModelChoices = false;
+        ChatModelHealth = "Asking the server which models it serves\u2026";
+
+        try
+        {
+            var models = await ChatModels.ListAsync(protocol, ChatServerUrl);
+
+            foreach (var name in models)
+                ChatModelChoices.Add(new ChatModelChoiceViewModel(name, UseDetectedModel));
+
+            HasChatModelChoices = ChatModelChoices.Count > 0;
+
+            if (ChatModelChoices.Count == 0)
+            {
+                ChatModelHealth = "The server answered, but serves no models.";
+                return;
+            }
+
+            if (ChatModelName.Trim().Length == 0)
+                ChatModelName = ChatModelChoices[0].Name;
+
+            ChatModelHealth = $"{ChatModelChoices.Count} model(s) found \u2014 pick one, then Apply.";
+        }
+        catch (Exception ex)
+        {
+            ChatModelHealth = "Could not reach the server: " + ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// A model that is configured but not pulled fails as a 404 at question time,
+    /// so it can be checked before a question is wasted on it.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckChatModelAsync()
+    {
+        ChatModelHealth = "Checking the model\u2026";
+        ChatModelHealth = await _chatService.CheckModelAsync();
+    }
+
     // ------------------------------------------------------------ sidebar state
 
     [ObservableProperty] private string _searchQuery = string.Empty;
@@ -501,6 +820,8 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedNoteChanged(NoteRowViewModel? value)
     {
+        SyncNavigatorSelection();
+
         if (_suppressSelection || value is null)
         {
             ConfirmDelete = false;
@@ -522,6 +843,7 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedDocumentChanged(DocumentRowViewModel? value)
     {
         ConfirmDeleteDocument = false;
+        SyncNavigatorSelection();
 
         if (_suppressSelection || value is null)
             return;
@@ -583,7 +905,7 @@ public partial class MainViewModel : ViewModelBase
         {
             await RefreshAsync();
             await ReloadChatAsync();
-            View = VaultView.Graph;
+            ShowLibrary();
             StatusMessage = _allNotes.Count == 0 && _allDocuments.Count == 0
                 ? "Empty vault \u2014 import a PDF or create your first note."
                 : $"Vault ready \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers";
@@ -649,6 +971,135 @@ public partial class MainViewModel : ViewModelBase
             Documents.Add(new DocumentRowViewModel(document, anchoredCounts.GetValueOrDefault(document.Id)));
 
         _suppressSelection = false;
+
+        RebuildNavigator();
+    }
+
+    // -------------------------------------------------------------- navigator
+
+    private const string UnfiledFolder = "Unfiled";
+
+    private const string PapersFolder = "Papers";
+
+    /// <summary>Which folders the navigator has open, so a refresh does not close them.</summary>
+    private readonly Dictionary<string, bool> _folderExpansion = new(StringComparer.OrdinalIgnoreCase);
+
+    public ObservableCollection<NavigatorFolderViewModel> NavigatorFolders { get; } = new();
+
+    /// <summary>
+    /// The navigator groups the notes it is showing into folders by their first
+    /// tag, plus a folder for the papers. Search results land in the same tree,
+    /// so the folders always describe the list under them.
+    /// </summary>
+    private void RebuildNavigator()
+    {
+        foreach (var folder in NavigatorFolders)
+            _folderExpansion[folder.Title] = folder.IsExpanded;
+
+        NavigatorFolders.Clear();
+
+        foreach (var group in Notes
+                     .GroupBy(n => n.Note.Tags.Count > 0 ? n.Note.Tags[0].Name : UnfiledFolder)
+                     .OrderBy(g => g.Key.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                     .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var rows = group.Select(note => new NavigatorRowViewModel(
+                note.Id,
+                note.Title,
+                note.ProvenanceLabel,
+                note.Preview,
+                SelectNoteFromNavigator));
+
+            NavigatorFolders.Add(new NavigatorFolderViewModel(
+                group.Key,
+                rows,
+                group.Count().ToString(),
+                AddNoteToFolder,
+                _folderExpansion.TryGetValue(group.Key, out var expanded) ? expanded : true));
+        }
+
+        if (Documents.Count > 0)
+        {
+            var rows = Documents.Select(document => new NavigatorRowViewModel(
+                document.Id,
+                document.Title,
+                document.MatchPage is { } page ? $"p. {page}" : string.Empty,
+                document.MetaLine,
+                SelectDocumentFromNavigator));
+
+            NavigatorFolders.Add(new NavigatorFolderViewModel(
+                PapersFolder,
+                rows,
+                Documents.Count.ToString(),
+                null,
+                _folderExpansion.TryGetValue(PapersFolder, out var expanded) ? expanded : true));
+        }
+
+        SyncNavigatorSelection();
+    }
+
+    /// <summary>Highlights the row of the note or paper that is open.</summary>
+    private void SyncNavigatorSelection()
+    {
+        var noteId = SelectedNote?.Id;
+        var documentId = SelectedDocument?.Document.Id;
+
+        foreach (var folder in NavigatorFolders)
+        {
+            foreach (var row in folder.Rows)
+                row.IsSelected = row.Id == noteId || row.Id == documentId;
+        }
+    }
+
+    private void SelectNoteFromNavigator(string noteId)
+    {
+        var row = Notes.FirstOrDefault(n => n.Id == noteId);
+        if (row is null)
+            return;
+
+        if (ReferenceEquals(SelectedNote, row))
+            View = VaultView.Editor;
+        else
+            SelectedNote = row;
+    }
+
+    private void SelectDocumentFromNavigator(string documentId)
+    {
+        var row = Documents.FirstOrDefault(d => d.Id == documentId);
+        if (row is null)
+            return;
+
+        if (!ReferenceEquals(SelectedDocument, row))
+            SelectedDocument = row;
+
+        View = VaultView.Reader;
+    }
+
+    /// <summary>A folder's plus button: a new note that already carries the folder's tag.</summary>
+    private void AddNoteToFolder(string folder)
+    {
+        if (folder is UnfiledFolder or PapersFolder)
+            return;
+
+        _ = AddNoteToFolderAsync(folder);
+    }
+
+    private async Task AddNoteToFolderAsync(string tag)
+    {
+        try
+        {
+            var note = await _noteService.CreateAsync("Untitled note");
+            await _noteService.SetTagsAsync(note, new[] { tag });
+
+            await RefreshAsync();
+            SelectNoteById(note.Id);
+            View = VaultView.Editor;
+            StatusMessage = $"New note in {tag} \u2014 markdown supported, [[Title]] connects notes.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not create note: " + ex.Message;
+        }
     }
 
     /// <summary>Rebuilds the Idea-Craft transcript from the stored turns.</summary>
@@ -676,7 +1127,9 @@ public partial class MainViewModel : ViewModelBase
         var messages = await _chatService.HistoryAsync();
         ChatExchanges.Clear();
 
+        var transcript = new List<(string Question, ChatMessage Answer, List<ChatCitation> Citations)>();
         string? pendingQuestion = null;
+
         foreach (var message in messages)
         {
             if (message.IsUser)
@@ -691,14 +1144,31 @@ public partial class MainViewModel : ViewModelBase
             var citations = SuggestionJson.Deserialize<List<ChatCitation>>(message.CitationsJson ?? "[]")
                             ?? new List<ChatCitation>();
 
+            transcript.Add((pendingQuestion, message, citations));
+            pendingQuestion = null;
+        }
+
+        for (var i = 0; i < transcript.Count; i++)
+        {
+            var (question, message, citations) = transcript[i];
+
+            // Only the newest answer can be followed up usefully, and suggesting
+            // against every old answer would repeat the same three questions.
+            var suggestions = i == transcript.Count - 1
+                ? (await _chatService.SuggestAsync(citations))
+                    .Select(text => new ChatSuggestionViewModel(text, AskFollowUpAsync))
+                    .ToList()
+                : new List<ChatSuggestionViewModel>();
+
             ChatExchanges.Add(new ChatExchangeViewModel(
-                pendingQuestion,
+                question,
                 message.Text,
                 citations.Select(c => new ChatCitationViewModel(c, OpenChatNoteAsync, OpenChatPageAsync)).ToList(),
                 message.CreatedAt,
-                warning: null));
-
-            pendingQuestion = null;
+                // The reason an answer should not be trusted has to survive a
+                // restart, or yesterday's guess looks like today's evidence.
+                message.Warning,
+                suggestions));
         }
 
         HasChatHistory = ChatExchanges.Count > 0;
@@ -829,8 +1299,12 @@ public partial class MainViewModel : ViewModelBase
 
     private void UpdateCounts()
     {
+        var folderCount = _allNotes
+            .Select(n => n.Tags.Count > 0 ? n.Tags[0].Name : UnfiledFolder)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
         var tagCount = _allNotes.SelectMany(n => n.Tags).Select(t => t.Name).Distinct().Count();
-        CountsSummary = $"{_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers \u00b7 {_allLinks.Count} links \u00b7 {tagCount} tags";
+        CountsSummary = $"{folderCount} folders \u00b7 {_allDocuments.Count} papers \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers \u00b7 {_allLinks.Count} links \u00b7 {tagCount} tags";
     }
 
     // ------------------------------------------------------------------ graph
@@ -1088,7 +1562,9 @@ public partial class MainViewModel : ViewModelBase
             return;
 
         IsBusy = true;
-        string? lastImported = null;
+        string? lastOpened = null;
+        var imported = 0;
+        var duplicates = new List<string>();
         var failures = new List<string>();
 
         try
@@ -1099,7 +1575,13 @@ public partial class MainViewModel : ViewModelBase
                 {
                     StatusMessage = $"Importing {Path.GetFileName(file)}\u2026";
                     var result = await _importService.ImportAsync(file);
-                    lastImported = result.Document.Id;
+
+                    lastOpened = result.Document.Id;
+
+                    if (result.AlreadyPresent)
+                        duplicates.Add(result.Document.Title);
+                    else
+                        imported++;
                 }
                 catch (Exception ex)
                 {
@@ -1114,19 +1596,48 @@ public partial class MainViewModel : ViewModelBase
 
         await RefreshAsync();
 
-        var queued = failures.Count == files.Count ? 0 : await QueueSuggestionsAsync();
+        // Only a real import can change what is worth connecting; a file the
+        // vault already had changes nothing.
+        var queued = imported > 0 ? await QueueSuggestionsAsync() : 0;
 
-        if (lastImported is not null)
+        if (lastOpened is not null)
         {
-            SelectDocumentById(lastImported);
+            SelectDocumentById(lastOpened);
             View = VaultView.Reader;
         }
 
-        StatusMessage = failures.Count == 0
-            ? $"Imported {files.Count} PDF(s)." + (queued > 0
-                ? $" {queued} connection suggestion(s) queued for review."
-                : " Highlight text to create a page-anchored note.")
-            : $"Imported with {failures.Count} failure(s): {string.Join("; ", failures)}";
+        StatusMessage = SummarizeImport(imported, duplicates, failures, queued);
+    }
+
+    /// <summary>
+    /// One sentence per outcome: what came in, what the vault already had, and
+    /// what could not be read. A duplicate is not a failure — it opens the paper
+    /// already in the vault.
+    /// </summary>
+    private static string SummarizeImport(
+        int imported,
+        IReadOnlyList<string> duplicates,
+        IReadOnlyList<string> failures,
+        int queued)
+    {
+        var parts = new List<string>();
+
+        if (imported > 0)
+            parts.Add($"Imported {imported} PDF(s).");
+
+        if (duplicates.Count > 0)
+            parts.Add($"Already in the vault, opened instead: {string.Join(", ", duplicates)}.");
+
+        if (failures.Count > 0)
+            parts.Add($"Could not import: {string.Join("; ", failures)}.");
+
+        if (imported > 0 && duplicates.Count == 0 && failures.Count == 0)
+            parts.Add("Highlight text to create a page-anchored note.");
+
+        if (queued > 0)
+            parts.Add($"{queued} connection suggestion(s) queued for review.");
+
+        return parts.Count == 0 ? "Nothing was imported." : string.Join(" ", parts);
     }
 
     /// <summary>
@@ -1208,6 +1719,8 @@ public partial class MainViewModel : ViewModelBase
 
             _suppressSelection = false;
 
+            RebuildNavigator();
+
             HasSearchResults = true;
             ListHeader = $"RESULTS \u00b7 {hits.Count}" +
                          (outcome.SemanticOnly > 0 ? $" \u00b7 {outcome.SemanticOnly} by meaning" : string.Empty);
@@ -1235,7 +1748,26 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ShowLibrary() => View = SelectedNote is not null
+        ? VaultView.Editor
+        : SelectedDocument is not null
+            ? VaultView.Reader
+            : VaultView.Library;
+
+    [RelayCommand]
     private void ShowGraph() => View = VaultView.Graph;
+
+    [RelayCommand]
+    private void ShowLlmConfiguration() => View = VaultView.LlmConfig;
+
+    [RelayCommand]
+    private void ShowDataSharing() => View = VaultView.DataSharing;
+
+    [RelayCommand]
+    private void ShowExtensions() => View = VaultView.Extensions;
+
+    [RelayCommand]
+    private void ShowTrash() => View = VaultView.Trash;
 
     [RelayCommand]
     private void ShowChat() => View = VaultView.Chat;
@@ -1293,6 +1825,9 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            // The service keeps the question and whatever was written, so the
+            // transcript has to be rebuilt to show them.
+            await ReloadChatAsync();
             StatusMessage = "Answer stopped.";
         }
         catch (Exception ex)
@@ -1310,6 +1845,29 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void CancelChat() => _chatCts?.Cancel();
+
+    /// <summary>Asks a question offered under the last answer.</summary>
+    private async Task AskFollowUpAsync(string question)
+    {
+        if (IsChatting)
+            return;
+
+        ChatQuestion = question;
+        await AskIdeaCraftAsync();
+    }
+
+    /// <summary>Forgets the conversation. Notes, papers and links stay as they are.</summary>
+    [RelayCommand]
+    private async Task ClearChatAsync()
+    {
+        if (IsChatting)
+            return;
+
+        await _chatService.ClearHistoryAsync();
+        ChatExchanges.Clear();
+        HasChatHistory = false;
+        StatusMessage = "Idea-Craft history cleared. The vault is untouched.";
+    }
 
     /// <summary>A citation opens the note it points at, so the claim can be checked.</summary>
     private async Task OpenChatNoteAsync(string noteId)

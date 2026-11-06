@@ -68,6 +68,9 @@ public interface IVaultRepository
     Task<IReadOnlyList<ChatMessage>> ListChatMessagesAsync(int limit = 200, CancellationToken ct = default);
     Task SaveChatMessageAsync(ChatMessage message, CancellationToken ct = default);
 
+    /// <summary>Forgets the conversation; notes, papers and links are untouched.</summary>
+    Task DeleteChatMessagesAsync(CancellationToken ct = default);
+
     // Audit trail
     Task<IReadOnlyList<AuditEntry>> ListAuditAsync(int limit = 100, CancellationToken ct = default);
     Task AppendAuditAsync(AuditEntry entry, CancellationToken ct = default);

@@ -21,13 +21,14 @@ public sealed class SqliteVaultRepository : IVaultRepository
     /// <summary>Column order shared by every document query and <see cref="ReadDocument"/>.</summary>
     private const string DocumentColumns =
         "id, file_path, file_name, title, authors, year, doi, page_count, imported_at, " +
-        "item_type, abstract, publication, volume, issue, page_range, issn, url, keywords, language";
+        "item_type, abstract, publication, volume, issue, page_range, issn, url, keywords, language, " +
+        "content_hash";
 
     /// <summary>Citation detail added after the first release; older vaults gain the columns on open.</summary>
     private static readonly string[] DocumentDetailColumns =
     {
         "item_type", "abstract", "publication", "volume", "issue",
-        "page_range", "issn", "url", "keywords", "language",
+        "page_range", "issn", "url", "keywords", "language", "content_hash",
     };
 
     private readonly string _connectionString;
@@ -180,6 +181,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 role           TEXT NOT NULL,
                 text           TEXT NOT NULL,
                 citations_json TEXT NULL,
+                warning        TEXT NULL,
                 created_at     TEXT NOT NULL
             );
 
@@ -229,6 +231,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             """, ct);
 
         await EnsureDocumentDetailColumnsAsync(connection, ct);
+        await EnsureChatColumnsAsync(connection, ct);
 
         try
         {
@@ -265,6 +268,23 @@ public sealed class SqliteVaultRepository : IVaultRepository
 
             await ExecuteAsync(connection, $"ALTER TABLE documents ADD COLUMN {column} TEXT NULL;", ct);
         }
+    }
+
+    /// <summary>Adds the answer warning to a vault created before it existed.</summary>
+    private static async Task EnsureChatColumnsAsync(SqliteConnection connection, CancellationToken ct)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(chat_messages);";
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                existing.Add(reader.GetString(1));
+        }
+
+        if (!existing.Contains("warning"))
+            await ExecuteAsync(connection, "ALTER TABLE chat_messages ADD COLUMN warning TEXT NULL;", ct);
     }
 
     // ----------------------------------------------------------------- notes
@@ -645,7 +665,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 INSERT INTO documents ({DocumentColumns})
                 VALUES ($id, $path, $name, $title, $authors, $year, $doi, $pages, $imported,
                         $itemType, $abstract, $publication, $volume, $issue,
-                        $pageRange, $issn, $url, $keywords, $language)
+                        $pageRange, $issn, $url, $keywords, $language, $contentHash)
                 ON CONFLICT(id) DO UPDATE SET
                     file_path = excluded.file_path,
                     file_name = excluded.file_name,
@@ -663,7 +683,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
                     issn = excluded.issn,
                     url = excluded.url,
                     keywords = excluded.keywords,
-                    language = excluded.language;
+                    language = excluded.language,
+                    content_hash = excluded.content_hash;
                 """;
             command.Parameters.AddWithValue("$id", document.Id);
             command.Parameters.AddWithValue("$path", document.FilePath);
@@ -684,6 +705,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.Parameters.AddWithValue("$url", (object?)document.Url ?? DBNull.Value);
             command.Parameters.AddWithValue("$keywords", (object?)document.Keywords ?? DBNull.Value);
             command.Parameters.AddWithValue("$language", (object?)document.Language ?? DBNull.Value);
+            command.Parameters.AddWithValue("$contentHash", (object?)document.ContentHash ?? DBNull.Value);
             await command.ExecuteNonQueryAsync(ct);
         }
         finally
@@ -1096,7 +1118,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, role, text, citations_json, created_at
+            SELECT id, role, text, citations_json, warning, created_at
             FROM chat_messages ORDER BY created_at DESC LIMIT $limit;
             """;
         command.Parameters.AddWithValue("$limit", limit);
@@ -1111,7 +1133,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 Role = reader.GetString(1),
                 Text = reader.GetString(2),
                 CitationsJson = reader.IsDBNull(3) ? null : reader.GetString(3),
-                CreatedAt = FromDb(reader.GetString(4)),
+                Warning = reader.IsDBNull(4) ? null : reader.GetString(4),
+                CreatedAt = FromDb(reader.GetString(5)),
             });
         }
 
@@ -1127,14 +1150,31 @@ public sealed class SqliteVaultRepository : IVaultRepository
             await using var connection = await OpenAsync(ct);
             await using var command = connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO chat_messages (id, role, text, citations_json, created_at)
-                VALUES ($id, $role, $text, $citations, $created);
+                INSERT INTO chat_messages (id, role, text, citations_json, warning, created_at)
+                VALUES ($id, $role, $text, $citations, $warning, $created);
                 """;
             command.Parameters.AddWithValue("$id", message.Id);
             command.Parameters.AddWithValue("$role", message.Role);
             command.Parameters.AddWithValue("$text", message.Text);
             command.Parameters.AddWithValue("$citations", (object?)message.CitationsJson ?? DBNull.Value);
+            command.Parameters.AddWithValue("$warning", (object?)message.Warning ?? DBNull.Value);
             command.Parameters.AddWithValue("$created", ToDb(message.CreatedAt));
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async Task DeleteChatMessagesAsync(CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM chat_messages;";
             await command.ExecuteNonQueryAsync(ct);
         }
         finally
@@ -1507,6 +1547,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         Url = Text(reader, 16),
         Keywords = Text(reader, 17),
         Language = Text(reader, 18),
+        ContentHash = Text(reader, 19),
     };
 
     private static string? Text(SqliteDataReader reader, int ordinal) =>

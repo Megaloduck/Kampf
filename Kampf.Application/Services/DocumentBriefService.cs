@@ -22,9 +22,12 @@ public sealed class DocumentBriefService
         "Quote no number you cannot see in the text. If part of the paper is missing, say which. " +
         "No preamble, no headings, no invented citations, at most 120 words.";
 
-    private readonly IChatModel? _model;
+    private IChatModel? _model;
 
     public DocumentBriefService(IChatModel? model = null) => _model = model;
+
+    /// <summary>Follows the model chosen in Settings; briefs and answers agree.</summary>
+    public void UseModel(IChatModel? model) => _model = model;
 
     public bool HasLocalModel => _model is not null;
 

@@ -5,7 +5,8 @@ namespace Kampf.Domain.Entities;
 /// <summary>
 /// One turn of the Idea-Craft conversation. Assistant turns carry the citations
 /// that back the answer, so an answer can always be traced back to a note (and
-/// the page it was captured from).
+/// the page it was captured from), plus the warning it was answered with: an
+/// unverified answer must stay unverified after a restart.
 /// </summary>
 public sealed class ChatMessage
 {
@@ -16,11 +17,15 @@ public sealed class ChatMessage
     public string Role { get; set; } = UserRole;
     public string Text { get; set; } = string.Empty;
     public string? CitationsJson { get; set; }
+
+    /// <summary>Why this answer should not be trusted as-is, when it should not.</summary>
+    public string? Warning { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 
     public bool IsUser => Role == UserRole;
 
-    public static ChatMessage Create(string role, string text, string? citationsJson = null)
+    public static ChatMessage Create(string role, string text, string? citationsJson = null, string? warning = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("A chat message needs text.", nameof(text));
@@ -30,6 +35,7 @@ public sealed class ChatMessage
             Role = role,
             Text = text.Trim(),
             CitationsJson = citationsJson,
+            Warning = warning,
         };
     }
 }

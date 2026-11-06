@@ -10,136 +10,120 @@
              x:DataType="vm:MainViewModel"
              Background="{DynamicResource BgBrush}">
 
-    <UserControl.Styles>
-        <Style Selector="GridSplitter">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Cursor" Value="SizeWestEast"/>
-        </Style>
-        <Style Selector="GridSplitter:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-    </UserControl.Styles>
-
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Kampf/Views/RowTemplates.axaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
-
-    <Grid x:Name="RootLayout" RowDefinitions="Auto,*">
-        <!-- 0 sidebar | 1 splitter | 2 workspace | 3 splitter | 4 review queue -->
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="286"/>
-            <ColumnDefinition Width="6"/>
-            <ColumnDefinition Width="*" MinWidth="320"/>
-            <ColumnDefinition Width="6"/>
-            <ColumnDefinition Width="326"/>
-        </Grid.ColumnDefinitions>
+    <!-- rail | navigator | splitter | workspace | splitter | review queue -->
+    <Grid x:Name="RootLayout"
+          RowDefinitions="Auto,*"
+          ColumnDefinitions="Auto,268,6,*,6,330">
 
         <!-- ============================================================ header -->
-        <Border Grid.Row="0" Grid.ColumnSpan="5"
+        <Border Grid.Row="0" Grid.ColumnSpan="6"
                 Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="18,10">
+                Padding="16,9">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+                    <Border Width="30" Height="30" CornerRadius="15" ClipToBounds="True">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                <GradientStop Offset="0" Color="#8FA6FF"/>
+                                <GradientStop Offset="0.55" Color="#C084FC"/>
+                                <GradientStop Offset="1" Color="#4FD1C5"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Classes="icon"
+                                   FontSize="15"
+                                   Text="{x:Static controls:Symbols.Hub}"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
                     <TextBlock Text="KAMPF"
-                               FontSize="16"
+                               FontSize="15"
                                FontWeight="Bold"
-                               LetterSpacing="3"
-                               Foreground="{DynamicResource TextBrush}"/>
+                               LetterSpacing="3.4"
+                               VerticalAlignment="Center"/>
+
                     <Border Background="{DynamicResource PanelAltBrush}"
                             CornerRadius="4"
                             Padding="7,2"
                             VerticalAlignment="Center">
-                        <TextBlock Text="LOCAL VAULT" FontSize="9.5" LetterSpacing="1"
+                        <TextBlock Text="LOCAL VAULT"
+                                   FontSize="9"
+                                   LetterSpacing="1.1"
                                    Foreground="{DynamicResource FaintBrush}"/>
                     </Border>
-                    <Button x:Name="SidebarToggleButton"
-                            Classes="ghost iconButton"
-                            Click="OnToggleSidebarClick"
-                            ToolTip.Tip="Hide the note list">
-                        <TextBlock x:Name="SidebarToggleIcon"
-                                   Classes="icon"
-                                   FontSize="18"
-                                   Text="{x:Static controls:Symbols.LeftPanelClose}"/>
-                    </Button>
                 </StackPanel>
 
-                <TextBlock Grid.Column="1"
-                           Text="{Binding CountsSummary}"
-                           Classes="meta"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Working..."
+                               Classes="meta"
+                               FontSize="10.5"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               IsVisible="{Binding IsBusy}"/>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="2">
-                        <Button x:Name="UndoButton"
-                                Classes="ghost iconButton"
-                                Click="OnUndoClick"
-                                ToolTip.Tip="Undo (Ctrl+Z)">
-                            <TextBlock Classes="icon"
-                                       FontSize="18"
-                                       Text="{x:Static controls:Symbols.Undo}"/>
-                        </Button>
-                        <Button x:Name="RedoButton"
-                                Classes="ghost iconButton"
-                                Click="OnRedoClick"
-                                ToolTip.Tip="Redo (Ctrl+Y)">
-                            <TextBlock Classes="icon"
-                                       FontSize="18"
-                                       Text="{x:Static controls:Symbols.Redo}"/>
-                        </Button>
-                    </StackPanel>
-                    <Button Classes="ghost iconButton"
-                            Command="{Binding ShowSettingsCommand}"
-                            ToolTip.Tip="Settings">
+                    <Button x:Name="UndoButton"
+                            Classes="ghost iconButton"
+                            Click="OnUndoClick"
+                            ToolTip.Tip="Undo (Ctrl+Z)">
                         <TextBlock Classes="icon"
-                                   FontSize="19"
-                                   Text="{x:Static controls:Symbols.Settings}"/>
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.Undo}"/>
                     </Button>
+                    <Button x:Name="RedoButton"
+                            Classes="ghost iconButton"
+                            Click="OnRedoClick"
+                            ToolTip.Tip="Redo (Ctrl+Y)">
+                        <TextBlock Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.Redo}"/>
+                    </Button>
+
+                    <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
+
                     <Button Classes="ghost iconButton"
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip.Tip="{Binding ThemeButtonLabel}">
                         <Panel>
                             <TextBlock Classes="icon"
-                                       FontSize="19"
+                                       FontSize="18"
                                        Text="{x:Static controls:Symbols.LightMode}"
                                        IsVisible="{Binding IsDarkTheme}"/>
                             <TextBlock Classes="icon"
-                                       FontSize="19"
+                                       FontSize="18"
                                        Text="{x:Static controls:Symbols.DarkMode}"
                                        IsVisible="{Binding !IsDarkTheme}"/>
                         </Panel>
                     </Button>
-                    <Button Classes="ghost"
+                    <Button Classes="ghost iconButton"
                             Command="{Binding NewNoteCommand}"
-                            ToolTip.Tip="Create a new note">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Classes="icon"
-                                       FontSize="17"
-                                       Text="{x:Static controls:Symbols.NoteAdd}"/>
-                            <TextBlock Text="New note"/>
-                        </StackPanel>
+                            ToolTip.Tip="New note (Ctrl+N)">
+                        <TextBlock Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.NoteAdd}"/>
                     </Button>
-                    <Button Classes="primary"
+                    <Button Classes="primary iconButton"
                             Command="{Binding ImportPdfCommand}"
-                            ToolTip.Tip="Import a PDF into the vault">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Classes="icon"
-                                       FontSize="17"
-                                       Text="{x:Static controls:Symbols.UploadFile}"
-                                       Foreground="{DynamicResource OnAccentBrush}"/>
-                            <TextBlock Text="Import PDF"/>
-                        </StackPanel>
+                            ToolTip.Tip="Import a PDF into the vault (Ctrl+O)">
+                        <TextBlock Classes="icon"
+                                   FontSize="17"
+                                   Text="{x:Static controls:Symbols.UploadFile}"
+                                   Foreground="{DynamicResource OnAccentBrush}"/>
                     </Button>
-                    <Border Width="1"
-                            Height="20"
-                            Margin="2,0"
-                            Background="{DynamicResource BorderBrush}"/>
+
+                    <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
+
+                    <Button x:Name="NavigatorToggleButton"
+                            Classes="ghost iconButton"
+                            Click="OnToggleNavigatorClick"
+                            ToolTip.Tip="Hide the navigator">
+                        <TextBlock x:Name="NavigatorToggleIcon"
+                                   Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.LeftPanelClose}"/>
+                    </Button>
                     <Button x:Name="ReviewToggleButton"
                             Classes="ghost iconButton"
                             Click="OnToggleReviewClick"
@@ -153,149 +137,374 @@
             </Grid>
         </Border>
 
-        <!-- =========================================================== sidebar -->
+        <!-- ======================== icon rail ================================ -->
         <Border Grid.Row="1" Grid.Column="0"
-                x:Name="SidebarPanel"
-                MinWidth="220"
-                Background="{DynamicResource PanelBrush}"
+                Background="{DynamicResource BgBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,1,0">
-            <Grid RowDefinitions="Auto,Auto,2*,Auto,*,Auto">
-                <TextBox Grid.Row="0"
-                         Margin="12,12,12,8"
-                         Padding="32,6,9,6"
-                         Text="{Binding SearchQuery, Mode=TwoWay}"
-                         Watermark="Search text or tag:name"
-                         KeyDown="OnSearchKeyDown">
-                    <TextBox.InnerLeftContent>
+                BorderThickness="0,0,1,0"
+                
+                Padding="10">
+            <Grid RowDefinitions="*,Auto">
+                <StackPanel Spacing="6">
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsLibraryActive}"
+                            Command="{Binding ShowLibraryCommand}"
+                            ToolTip.Tip="Library">
                         <TextBlock Classes="icon"
-                                   FontSize="15"
-                                   Margin="10,0,0,0"
-                                   Text="{x:Static controls:Symbols.Search}"
-                                   Foreground="{DynamicResource FaintBrush}"/>
-                    </TextBox.InnerLeftContent>
-                </TextBox>
+                                   Classes.railActive="{Binding IsLibraryActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Library}"/>
+                    </Button>
 
-                <TextBlock Grid.Row="1"
-                           Text="{Binding ListHeader}"
-                           Classes="section"
-                           Margin="16,4,14,6"/>
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsGraphActive}"
+                            Command="{Binding ShowGraphCommand}"
+                            ToolTip.Tip="Graph">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsGraphActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Hub}"/>
+                    </Button>
 
-                <ListBox Grid.Row="2"
-                         ItemsSource="{Binding Notes}"
-                         SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                         ItemTemplate="{StaticResource NoteRowTemplate}"
-                         Margin="6,0"/>
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsChatActive}"
+                            Command="{Binding ShowChatCommand}"
+                            ToolTip.Tip="Idea Craft">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsChatActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Psychology}"/>
+                    </Button>
 
-                <TextBlock Grid.Row="3"
-                           Text="PAPERS"
-                           Classes="section"
-                           Margin="16,12,14,6"/>
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsLlmConfigActive}"
+                            Command="{Binding ShowLlmConfigurationCommand}"
+                            ToolTip.Tip="LLM Configuration">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsLlmConfigActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Handyman}"/>
+                    </Button>
 
-                <ListBox Grid.Row="4"
-                         ItemsSource="{Binding Documents}"
-                         SelectedItem="{Binding SelectedDocument, Mode=TwoWay}"
-                         ItemTemplate="{StaticResource DocumentRowTemplate}"
-                         Margin="6,0"/>
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsDataSharingActive}"
+                            Command="{Binding ShowDataSharingCommand}"
+                            ToolTip.Tip="Data sharing and Connection">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsDataSharingActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.CloudSync}"/>
+                    </Button>
 
-                <TextBlock Grid.Row="5"
-                           Text="{Binding CountsSummary}"
-                           Classes="meta"
-                           FontSize="10.5"
-                           Margin="16,10"
-                           TextWrapping="Wrap"/>
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsExtensionsActive}"
+                            Command="{Binding ShowExtensionsCommand}"
+                            ToolTip.Tip="Extension">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsExtensionsActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Extension}"/>
+                    </Button>
+
+                    <Button Classes="rail"
+                            Classes.active="{Binding IsTrashActive}"
+                            Command="{Binding ShowTrashCommand}"
+                            ToolTip.Tip="Trash bin">
+                        <TextBlock Classes="icon"
+                                   Classes.railActive="{Binding IsTrashActive}"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.Delete}"/>
+                    </Button>
+                </StackPanel>
+
+                <Button Grid.Row="1"
+                        Classes="rail"
+                        Classes.active="{Binding IsSettingsActive}"
+                        Command="{Binding ShowSettingsCommand}"
+                        ToolTip.Tip="Settings">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsSettingsActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Settings}"/>
+                </Button>
             </Grid>
         </Border>
 
-        <GridSplitter Grid.Row="1" Grid.Column="1"
-                      x:Name="SidebarSplitter"
+        <!-- ========================================================= navigator -->
+        <Border Grid.Row="1" Grid.Column="1"
+                x:Name="NavigatorPanel"
+                MinWidth="200"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,12,10,8">
+                    <TextBox x:Name="SearchBox"
+                             Padding="30,6,9,6"
+                             Text="{Binding SearchQuery, Mode=TwoWay}"
+                             Watermark="Search text or tag:name"
+                             ToolTip.Tip="Search text or tag:name (Ctrl+F)"
+                             KeyDown="OnSearchKeyDown">
+                        <TextBox.InnerLeftContent>
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Margin="9,0,0,0"
+                                       Text="{x:Static controls:Symbols.Search}"
+                                       Foreground="{DynamicResource FaintBrush}"/>
+                        </TextBox.InnerLeftContent>
+                    </TextBox>
+
+                    <Button Grid.Column="1"
+                            Classes="ghost iconButton"
+                            Margin="6,0,0,0"
+                            Command="{Binding NewNoteCommand}"
+                            ToolTip.Tip="New note (Ctrl+N)">
+                        <TextBlock Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.NoteAdd}"/>
+                    </Button>
+                </Grid>
+
+                <!-- What the search found, kept where the old list header was. -->
+                <Border Grid.Row="1"
+                        IsVisible="{Binding HasSearchResults}"
+                        Margin="12,0,11,6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding ListHeader}"
+                                   Classes="section"
+                                   FontSize="9"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="1"
+                                Classes="link"
+                                FontSize="10"
+                                Command="{Binding ClearSearchCommand}"
+                                ToolTip.Tip="Show every note again">
+                            <TextBlock Text="Clear"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="2">
+                    <ItemsControl ItemsSource="{Binding NavigatorFolders}" Margin="8,0,8,10">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavigatorFolderViewModel">
+                                <StackPanel Margin="0,0,0,3">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Button Classes="folderRow"
+                                                Command="{Binding ToggleCommand}"
+                                                ToolTip.Tip="{Binding Title}">
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                                <Panel Width="16" Height="16" VerticalAlignment="Center">
+                                                    <TextBlock Classes="icon"
+                                                               FontSize="16"
+                                                               Text="{x:Static controls:Symbols.ExpandMore}"
+                                                               Foreground="{DynamicResource FaintBrush}"
+                                                               IsVisible="{Binding IsExpanded}"/>
+                                                    <TextBlock Classes="icon"
+                                                               FontSize="16"
+                                                               Text="{x:Static controls:Symbols.ChevronRight}"
+                                                               Foreground="{DynamicResource FaintBrush}"
+                                                               IsVisible="{Binding IsCollapsed}"/>
+                                                </Panel>
+
+                                                <TextBlock Grid.Column="1"
+                                                           Classes="icon"
+                                                           FontSize="15"
+                                                           Margin="4,0,6,0"
+                                                           Text="{x:Static controls:Symbols.Folder}"
+                                                           Foreground="{DynamicResource MutedBrush}"/>
+
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Title}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding CountLabel}"
+                                                           Classes="meta"
+                                                           FontSize="10.5"
+                                                           Margin="6,0,2,0"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Button>
+
+                                        <Button Grid.Column="1"
+                                                Classes="addRowNote"
+                                                IsVisible="{Binding CanAddNote}"
+                                                Command="{Binding AddNoteCommand}"
+                                                ToolTip.Tip="New note in this folder">
+                                            <TextBlock Classes="icon"
+                                                       FontSize="15"
+                                                       Text="{x:Static controls:Symbols.Add}"
+                                                       Foreground="{DynamicResource MutedBrush}"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding Rows}"
+                                                  IsVisible="{Binding IsExpanded}"
+                                                  Margin="18,1,0,2">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:NavigatorRowViewModel">
+                                                <Button Classes="treeRow"
+                                                        Classes.active="{Binding IsSelected}"
+                                                        Command="{Binding SelectCommand}"
+                                                        ToolTip.Tip="{Binding ToolTip}">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                        <TextBlock Classes="icon"
+                                                                   FontSize="13"
+                                                                   Margin="0,0,7,0"
+                                                                   Text="{x:Static controls:Symbols.Article}"
+                                                                   Foreground="{DynamicResource FaintBrush}"/>
+
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Title}"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Detail}"
+                                                                   IsVisible="{Binding HasDetail}"
+                                                                   Classes="meta"
+                                                                   FontSize="10"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Grid.Row="3"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="14,8">
+                    <TextBlock Text="{Binding CountsSummary}"
+                               Classes="meta"
+                               FontSize="10"
+                               TextWrapping="Wrap"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Row="1" Grid.Column="2"
+                      x:Name="NavigatorSplitter"
                       Background="Transparent"
                       ResizeDirection="Columns"/>
 
-        <!-- ============================================================ views -->
-        <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="Auto,*">
-
-            <Border Grid.Row="0"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="14,8">
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Classes="nav"
-                                Classes.active="{Binding IsGraphView}"
-                                Command="{Binding ShowGraphCommand}"
-                                ToolTip.Tip="Graph view">
+        <!-- ========================================================= workspace -->
+        <Grid Grid.Row="1" Grid.Column="3">
+            <!-- Library landing: shown when the rail's Library entry has nothing open. -->
+            <Border IsVisible="{Binding IsLibraryView}" Padding="40">
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="10"
+                            MaxWidth="430">
+                    <TextBlock Classes="icon"
+                               FontSize="40"
+                               HorizontalAlignment="Center"
+                               Text="{x:Static controls:Symbols.Library}"
+                               Foreground="{DynamicResource FaintBrush}"/>
+                    <TextBlock Text="Nothing open"
+                               FontSize="17"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Choose a note or a paper in the navigator, or start something new. Notes are markdown, and [[Title]] connects them."
+                               Classes="muted"
+                               FontSize="12"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,0">
+                        <Button Classes="primary" Command="{Binding NewNoteCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Classes="icon"
                                            FontSize="16"
-                                           Text="{x:Static controls:Symbols.Hub}"/>
-                                <TextBlock Text="Graph"/>
+                                           Text="{x:Static controls:Symbols.NoteAdd}"
+                                           Foreground="{DynamicResource OnAccentBrush}"/>
+                                <TextBlock Text="New note"/>
                             </StackPanel>
                         </Button>
-                        <Button Classes="nav"
-                                Classes.active="{Binding IsEditorView}"
-                                Command="{Binding ShowEditorCommand}"
-                                ToolTip.Tip="Note editor">
+                        <Button Command="{Binding ImportPdfCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Classes="icon"
                                            FontSize="16"
-                                           Text="{x:Static controls:Symbols.EditNote}"/>
-                                <TextBlock Text="Note"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Classes="nav"
-                                Classes.active="{Binding IsReaderView}"
-                                Command="{Binding ShowReaderCommand}"
-                                ToolTip.Tip="Paper reader">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Classes="icon"
-                                           FontSize="16"
-                                           Text="{x:Static controls:Symbols.MenuBook}"/>
-                                <TextBlock Text="Reader"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Classes="nav"
-                                Classes.active="{Binding IsChatView}"
-                                Command="{Binding ShowChatCommand}"
-                                ToolTip.Tip="Idea-Craft: ask your vault a question">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Classes="icon"
-                                           FontSize="16"
-                                           Text="{x:Static controls:Symbols.Psychology}"/>
-                                <TextBlock Text="Idea-Craft"/>
+                                           Text="{x:Static controls:Symbols.UploadFile}"/>
+                                <TextBlock Text="Import PDF"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
-
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding GraphSummary}"
-                               Classes="meta"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsVisible="{Binding IsGraphView}"/>
-
-                    <TextBlock Grid.Column="2"
-                               Text="Working…"
-                               Classes="meta"
-                               VerticalAlignment="Center"
-                               IsVisible="{Binding IsBusy}"/>
-                </Grid>
+                </StackPanel>
             </Border>
 
-            <views:GraphView Grid.Row="1"/>
-            <views:NoteView Grid.Row="1" x:Name="NoteEditor"/>
-            <views:ReaderView Grid.Row="1"/>
-            <views:ChatView Grid.Row="1"/>
-            <views:SettingsView Grid.Row="1"/>
+            <!-- Extensions: nothing ships with this build. -->
+            <Border IsVisible="{Binding IsExtensionsView}" Padding="40">
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="10"
+                            MaxWidth="430">
+                    <TextBlock Classes="icon"
+                               FontSize="36"
+                               HorizontalAlignment="Center"
+                               Text="{x:Static controls:Symbols.Extension}"
+                               Foreground="{DynamicResource FaintBrush}"/>
+                    <TextBlock Text="No extensions installed"
+                               FontSize="16"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="This build has no extension system: everything Kampf does runs from the vault itself, with no plugins to install or trust."
+                               Classes="muted"
+                               FontSize="12"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Trash bin: deletion is permanent, so this stays empty by design. -->
+            <Border IsVisible="{Binding IsTrashView}" Padding="40">
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="10"
+                            MaxWidth="430">
+                    <TextBlock Classes="icon"
+                               FontSize="36"
+                               HorizontalAlignment="Center"
+                               Text="{x:Static controls:Symbols.Delete}"
+                               Foreground="{DynamicResource FaintBrush}"/>
+                    <TextBlock Text="The trash bin is empty"
+                               FontSize="16"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Deleting a note or a paper asks for a second click and then removes it from the vault for good, so nothing is kept here."
+                               Classes="muted"
+                               FontSize="12"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <views:NoteView x:Name="NoteEditor"/>
+            <views:ReaderView/>
+            <views:GraphView/>
+            <views:ChatView/>
+            <views:LlmConfigView/>
+            <views:DataSharingView/>
+            <views:SettingsView/>
         </Grid>
 
-        <GridSplitter Grid.Row="1" Grid.Column="3"
+        <GridSplitter Grid.Row="1" Grid.Column="4"
                       x:Name="ReviewSplitter"
                       Background="Transparent"
                       ResizeDirection="Columns"/>
 
         <!-- ====================================================== right panel -->
-        <Border Grid.Row="1" Grid.Column="4"
+        <Border Grid.Row="1" Grid.Column="5"
                 x:Name="ReviewPanel"
                 MinWidth="240"
                 Background="{DynamicResource PanelBrush}"

@@ -30,7 +30,7 @@ public sealed class PdfImportTests
             Assert.Equal(1, result.Document.PageCount);
             Assert.True(File.Exists(result.Document.FilePath));
             Assert.NotEqual(source, result.Document.FilePath);
-            Assert.Contains("Modularity", result.Extraction.Pages[0].Text);
+            Assert.Contains("Modularity", result.Extraction!.Pages[0].Text);
 
             var notes = new NoteService(vault.Repository);
             var note = await notes.CreateFromHighlightAsync(

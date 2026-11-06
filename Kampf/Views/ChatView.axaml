@@ -16,14 +16,31 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Spacing="5">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Classes="icon"
-                               FontSize="16"
-                               VerticalAlignment="Center"
-                               Text="{x:Static controls:Symbols.Psychology}"
-                               Foreground="{DynamicResource AccentBrush}"/>
-                    <TextBlock Text="IDEA-CRAFT" Classes="section" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Classes="icon"
+                                   FontSize="16"
+                                   VerticalAlignment="Center"
+                                   Text="{x:Static controls:Symbols.Psychology}"
+                                   Foreground="{DynamicResource AccentBrush}"/>
+                        <TextBlock Text="IDEA-CRAFT" Classes="section" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Classes="ghost"
+                            Padding="10,4"
+                            FontSize="11"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding HasChatHistory}"
+                            Command="{Binding ClearChatCommand}"
+                            ToolTip.Tip="Forget this conversation; notes and papers stay">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Classes="icon"
+                                       FontSize="13"
+                                       Text="{x:Static controls:Symbols.Delete}"/>
+                            <TextBlock Text="Clear"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
                 <TextBlock Text="Ask what connects two notes, or what your vault says about a topic. Answers quote the notes and pages they came from; nothing is written to the graph."
                            Classes="meta"
                            FontSize="10.5"
@@ -54,10 +71,8 @@
                                     CornerRadius="9,9,9,2"
                                     Padding="14,11">
                                 <StackPanel Spacing="9">
-                                    <TextBlock Text="{Binding Answer}"
-                                               FontSize="12.5"
-                                               LineHeight="19.5"
-                                               TextWrapping="Wrap"/>
+                                    <controls:AnswerText Answer="{Binding Answer}"
+                                                         Citations="{Binding Citations}"/>
 
                                     <ItemsControl ItemsSource="{Binding Citations}">
                                         <ItemsControl.ItemsPanel>
@@ -92,6 +107,36 @@
                                                Foreground="{DynamicResource WarnBrush}"
                                                FontSize="10.5"
                                                TextWrapping="Wrap"/>
+
+                                    <!-- Questions worth asking next, so a thread can be followed without typing. -->
+                                    <ItemsControl ItemsSource="{Binding Suggestions}"
+                                                  IsVisible="{Binding HasSuggestions}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ChatSuggestionViewModel">
+                                                <Button Classes="link"
+                                                        Margin="0,0,12,4"
+                                                        Command="{Binding AskCommand}"
+                                                        ToolTip.Tip="{Binding Text}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Classes="icon"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="{x:Static controls:Symbols.AutoAwesome}"
+                                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                                        <TextBlock Text="{Binding Text}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Text="{Binding GroundingLabel}"
@@ -131,10 +176,7 @@
                                    Classes="meta"
                                    FontSize="10"
                                    IsVisible="{Binding !HasLiveAnswer}"/>
-                        <TextBlock Text="{Binding LiveAnswer}"
-                                   FontSize="12.5"
-                                   LineHeight="19.5"
-                                   TextWrapping="Wrap"/>
+                        <controls:AnswerText Answer="{Binding LiveAnswer}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

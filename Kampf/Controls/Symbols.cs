@@ -38,4 +38,13 @@ public static class Symbols
     public const string ShieldLock = "\uF686";
     public const string Add = "\uE145";
     public const string Remove = "\uE15B";
+    public const string Library = "\uE02F";
+    public const string Handyman = "\uF10B";
+    public const string CloudSync = "\uEB5A";
+    public const string Extension = "\uE87B";
+    public const string Folder = "\uE2C7";
+    public const string Article = "\uEF42";
+    public const string Keyboard = "\uE312";
+    public const string ExpandMore = "\uE5CF";
+    public const string ChevronRight = "\uE5CC";
 }

@@ -9,58 +9,6 @@
              x:DataType="vm:MainViewModel"
              IsVisible="{Binding IsEditorView}">
 
-    <UserControl.Styles>
-        <Style Selector="ToggleButton.preview">
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-            <Setter Property="CornerRadius" Value="6"/>
-        </Style>
-        <Style Selector="ToggleButton.preview:checked">
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-        <Style Selector="ToggleButton.preview:checked /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
-        </Style>
-
-        <!-- Editor body: keep the caret and selection readable, and give focus a subtle ring. -->
-        <Style Selector="TextBox.body">
-            <Setter Property="FontFamily" Value="Consolas, Menlo, monospace"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="LineHeight" Value="21"/>
-            <Setter Property="Padding" Value="14"/>
-            <Setter Property="VerticalContentAlignment" Value="Top"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="AcceptsReturn" Value="True"/>
-            <Setter Property="CornerRadius" Value="8"/>
-        </Style>
-        <Style Selector="TextBox.body:focus /template/ Border#PART_BorderElement">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-
-        <!-- Title box: strip chrome, keep focus feedback subtle. -->
-        <Style Selector="TextBox.title">
-            <Setter Property="FontSize" Value="20"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.title:focus /template/ Border#PART_BorderElement">
-            <Setter Property="BorderThickness" Value="0,0,0,2"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-
-        <!-- Unsaved dot: small, non-intrusive, animated fade-in. -->
-        <Style Selector="TextBlock.dirty">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="10,0"/>
-            <Setter Property="Foreground" Value="{DynamicResource WarnBrush}"/>
-        </Style>
-    </UserControl.Styles>
-
     <!-- Note workspace: title, tags and one body panel shared by editor and preview. -->
     <Grid RowDefinitions="Auto,Auto,*,Auto">
 

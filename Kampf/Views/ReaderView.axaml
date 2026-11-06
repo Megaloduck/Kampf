@@ -17,33 +17,6 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <UserControl.Styles>
-        <!-- Page card: consistent radius, subtle hover lift on the whole card. -->
-        <Style Selector="Border.page">
-            <Setter Property="Background" Value="{DynamicResource PanelBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="18,14"/>
-            <Setter Property="Margin" Value="0,0,10,10"/>
-        </Style>
-
-        <!-- Info toggle: same visual language as NoteView's preview toggle. -->
-        <Style Selector="ToggleButton.info">
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-            <Setter Property="CornerRadius" Value="6"/>
-        </Style>
-        <Style Selector="ToggleButton.info:checked">
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-        <Style Selector="ToggleButton.info:checked /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
-        </Style>
-    </UserControl.Styles>
-
     <!-- Paper reader: metadata, rendered pages with their highlights, anchored notes. -->
     <Grid RowDefinitions="Auto,*,Auto">
 

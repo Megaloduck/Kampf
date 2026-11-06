@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -39,6 +40,40 @@ public sealed class ChatCitationViewModel
         : Citation.Excerpt;
 }
 
+/// <summary>
+/// A question worth asking next. Clicking one asks it, so following a thread
+/// costs no typing.
+/// </summary>
+public sealed class ChatSuggestionViewModel
+{
+    public ChatSuggestionViewModel(string text, Func<string, Task> ask)
+    {
+        Text = text;
+        AskCommand = new AsyncRelayCommand(() => ask(text));
+    }
+
+    public string Text { get; }
+
+    public ICommand AskCommand { get; }
+}
+
+/// <summary>
+/// A model the configured server reported, offered as a chip in Settings so the
+/// exact id can be picked instead of typed from memory.
+/// </summary>
+public sealed class ChatModelChoiceViewModel
+{
+    public ChatModelChoiceViewModel(string name, Action<string> use)
+    {
+        Name = name;
+        UseCommand = new RelayCommand(() => use(name));
+    }
+
+    public string Name { get; }
+
+    public ICommand UseCommand { get; }
+}
+
 /// <summary>A question and the cited answer it received.</summary>
 public sealed class ChatExchangeViewModel
 {
@@ -47,12 +82,14 @@ public sealed class ChatExchangeViewModel
         string answer,
         IReadOnlyList<ChatCitationViewModel> citations,
         DateTimeOffset at,
-        string? warning)
+        string? warning,
+        IReadOnlyList<ChatSuggestionViewModel>? suggestions = null)
     {
         Question = question;
         Answer = answer;
         Citations = citations;
         Warning = warning;
+        Suggestions = suggestions ?? Array.Empty<ChatSuggestionViewModel>();
         TimeLabel = at.LocalDateTime.ToString("MMM d, HH:mm");
     }
 
@@ -67,6 +104,10 @@ public sealed class ChatExchangeViewModel
     public bool HasWarning => !string.IsNullOrEmpty(Warning);
 
     public bool HasCitations => Citations.Count > 0;
+
+    public IReadOnlyList<ChatSuggestionViewModel> Suggestions { get; }
+
+    public bool HasSuggestions => Suggestions.Count > 0;
 
     public string TimeLabel { get; }
 

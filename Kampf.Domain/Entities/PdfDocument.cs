@@ -17,6 +17,13 @@ public sealed class PdfDocument
     public string? Doi { get; set; }
     public int PageCount { get; set; }
 
+    /// <summary>
+    /// SHA-256 of the PDF as imported, so the same file is recognised instead of
+    /// being copied into the vault a second time. Null for papers imported before
+    /// this was recorded.
+    /// </summary>
+    public string? ContentHash { get; set; }
+
     // Citation detail captured on import; null means the PDF did not carry it.
     public string? ItemType { get; set; }
     public string? Abstract { get; set; }

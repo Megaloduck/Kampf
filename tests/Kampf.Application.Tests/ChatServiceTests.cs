@@ -2,6 +2,7 @@ using Kampf.Application.Abstractions;
 using Kampf.Application.Embeddings;
 using Kampf.Application.Services;
 using Kampf.Domain.Entities;
+using Kampf.Domain.ValueObjects;
 using Xunit;
 
 namespace Kampf.Application.Tests;
@@ -37,6 +38,25 @@ public class ChatServiceTests
             yield return reply[..middle];
             await Task.Yield();
             yield return reply[middle..];
+        }
+    }
+
+    /// <summary>Writes one word and then stops, as the Stop button does.</summary>
+    private sealed class CancellingChatModel : IChatModel
+    {
+        public string Name => "ollama:cancelling";
+
+        public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct = default) =>
+            throw new OperationCanceledException();
+
+        public async IAsyncEnumerable<string> StreamAsync(
+            string systemPrompt,
+            string userPrompt,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return "Modularity";
+            await Task.Yield();
+            throw new OperationCanceledException();
         }
     }
 
@@ -76,6 +96,8 @@ public class ChatServiceTests
                 "Modularity maximisation finds communities in citation networks and is widely used.");
 
         public ChatService With(IChatModel? model) => new(Repo, Search, model);
+
+        public Task<Note> SeedNoteAsync(string title, string body) => Notes.CreateAsync(title, body);
     }
 
     [Fact]
@@ -165,5 +187,179 @@ public class ChatServiceTests
         Assert.Equal(ChatMessage.UserRole, harness.Repo.Chat[0].Role);
         Assert.Equal(ChatMessage.AssistantRole, harness.Repo.Chat[1].Role);
         Assert.Contains(note.Id, harness.Repo.Chat[1].CitationsJson!);
+    }
+
+    [Fact]
+    public async Task A_linking_question_reaches_both_of_its_subjects()
+    {
+        var harness = new Harness();
+        await harness.SeedNoteAsync(
+            "Modularity",
+            "modularity compares the observed edge density of a partition with the expected density");
+        await harness.SeedNoteAsync(
+            "Homophily",
+            "homophily measures how strongly nodes attach to nodes that resemble them");
+
+        var model = new FakeChatModel(() => "Both are about partitioning [1][2].");
+        var answer = await harness.With(model).AskAsync("What connects modularity and homophily?");
+
+        // One blended query would surface whichever half ranked higher; both
+        // subjects have to survive into the prompt.
+        Assert.Contains("Modularity", model.LastPrompt!);
+        Assert.Contains("Homophily", model.LastPrompt!);
+        Assert.Equal(2, answer.Citations.Count);
+    }
+
+    [Fact]
+    public async Task A_recorded_link_between_sources_is_given_to_the_model()
+    {
+        var harness = new Harness();
+        var first = await harness.SeedNoteAsync(
+            "Modularity",
+            "modularity compares the observed edge density of a partition with the expected density");
+        var second = await harness.SeedNoteAsync(
+            "Homophily",
+            "homophily measures how strongly nodes attach to nodes that resemble them");
+
+        harness.Repo.Links.Add(Link.Create(
+            first.Id,
+            second.Id,
+            EdgeKind.Manual,
+            "both partition the same citation network"));
+
+        var model = new FakeChatModel(() => "They share one network [1].");
+        await harness.With(model).AskAsync("What connects modularity and homophily?");
+
+        Assert.Contains("Connections the vault already records", model.LastPrompt!);
+        Assert.Contains("both partition the same citation network", model.LastPrompt!);
+    }
+
+    [Fact]
+    public async Task Without_a_model_the_connections_are_the_answer()
+    {
+        var harness = new Harness();
+        var first = await harness.SeedNoteAsync(
+            "Modularity",
+            "modularity compares the observed edge density of a partition with the expected density");
+        var second = await harness.SeedNoteAsync(
+            "Homophily",
+            "homophily measures how strongly nodes attach to nodes that resemble them");
+
+        harness.Repo.Links.Add(Link.Create(first.Id, second.Id, EdgeKind.Manual, "same citation network"));
+
+        var answer = await harness.With(null).AskAsync("What connects modularity and homophily?");
+
+        Assert.Contains("The vault already records these connections", answer.Text);
+        Assert.Contains("same citation network", answer.Text);
+    }
+
+    [Fact]
+    public async Task A_citation_quotes_the_passage_that_matched_not_the_opening()
+    {
+        var harness = new Harness();
+
+        var filler = string.Join(' ', Enumerable.Repeat("filler words about nothing in particular", 40));
+        await harness.SeedNoteAsync("A long note", filler + " the claim about modularity arrives only at the end");
+
+        var answer = await harness.With(null).AskAsync("modularity");
+
+        var citation = Assert.Single(answer.Citations);
+        Assert.Contains("modularity", citation.Excerpt);
+        Assert.True(citation.Excerpt.Length > 0);
+    }
+
+    [Fact]
+    public async Task Streaming_answers_are_assembled_in_order()
+    {
+        var harness = new Harness();
+        await harness.SeedHighlightAsync();
+
+        var deltas = new List<string>();
+        var model = new FakeChatModel(() => "Modularity finds communities [1].");
+
+        var answer = await harness.With(model).AskStreamingAsync(
+            "modularity communities",
+            delta =>
+            {
+                deltas.Add(delta);
+                return Task.CompletedTask;
+            });
+
+        Assert.Equal(2, deltas.Count);
+        Assert.Equal(answer.Text, string.Concat(deltas));
+        Assert.Equal("Modularity finds communities [1].", answer.Text);
+        Assert.Equal(answer.Text, harness.Repo.Chat[1].Text);
+    }
+
+    [Fact]
+    public async Task Stopping_mid_answer_keeps_the_question_and_what_was_written()
+    {
+        var harness = new Harness();
+        await harness.SeedHighlightAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            harness.With(new CancellingChatModel()).AskStreamingAsync(
+                "modularity communities",
+                _ => Task.CompletedTask));
+
+        Assert.Equal(2, harness.Repo.Chat.Count);
+        Assert.Contains("modularity communities", harness.Repo.Chat[0].Text);
+        Assert.Equal(ChatMessage.AssistantRole, harness.Repo.Chat[1].Role);
+        Assert.Equal("Modularity", harness.Repo.Chat[1].Text);
+        Assert.Contains("stopped", harness.Repo.Chat[1].Warning!.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task An_unverified_answer_is_stored_with_its_warning()
+    {
+        var harness = new Harness();
+        await harness.SeedHighlightAsync();
+
+        var model = new FakeChatModel(() => "Modularity is the only method that matters [9].");
+        await harness.With(model).AskAsync("modularity communities");
+
+        Assert.Null(harness.Repo.Chat[0].Warning);
+        Assert.Contains("unverified", harness.Repo.Chat[1].Warning!.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task An_answer_offers_questions_that_follow_it()
+    {
+        var harness = new Harness();
+        var first = await harness.SeedNoteAsync(
+            "Modularity",
+            "modularity compares the observed edge density of a partition with the expected density");
+        var second = await harness.SeedNoteAsync(
+            "Homophily",
+            "homophily measures how strongly nodes attach to nodes that resemble them");
+
+        harness.Repo.Links.Add(Link.Create(first.Id, second.Id, EdgeKind.Manual));
+
+        var answer = await harness.With(null).AskAsync("What connects modularity and homophily?");
+
+        Assert.NotEmpty(answer.NextQuestions);
+        Assert.Contains(answer.NextQuestions, question => question.Contains("Homophily"));
+    }
+
+    [Fact]
+    public async Task Clearing_the_history_leaves_the_vault_alone()
+    {
+        var harness = new Harness();
+        await harness.SeedHighlightAsync();
+
+        await harness.With(null).AskAsync("modularity communities");
+        await harness.With(null).ClearHistoryAsync();
+
+        Assert.Empty(harness.Repo.Chat);
+        Assert.NotEmpty(harness.Repo.Notes);
+    }
+
+    [Fact]
+    public async Task A_model_that_cannot_answer_says_so_when_checked()
+    {
+        var harness = new Harness();
+
+        var without = await harness.With(null).CheckModelAsync();
+        Assert.Contains("no local model", without.ToLowerInvariant());
     }
 }

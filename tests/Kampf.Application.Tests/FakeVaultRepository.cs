@@ -175,6 +175,12 @@ public sealed class FakeVaultRepository : IVaultRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteChatMessagesAsync(CancellationToken ct = default)
+    {
+        Chat.Clear();
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<AuditEntry>> ListAuditAsync(int limit = 100, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<AuditEntry>>(Audit.Take(limit).ToList());
 

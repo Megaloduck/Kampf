@@ -54,31 +54,32 @@ public partial class MainView : UserControl
     // --------------------------------------------------------- panel layout
 
     private static readonly GridLength PanelSplitterWidth = new(6);
-    private GridLength _sidebarWidth = new(286);
-    private GridLength _reviewWidth = new(326);
+    private GridLength _navigatorWidth = new(268);
+    private GridLength _reviewWidth = new(330);
 
-    // Column definitions get no generated fields, so address them by index.
-    private ColumnDefinition SidebarColumn => RootLayout.ColumnDefinitions[0];
-    private ColumnDefinition SidebarSplitterColumn => RootLayout.ColumnDefinitions[1];
-    private ColumnDefinition ReviewSplitterColumn => RootLayout.ColumnDefinitions[3];
-    private ColumnDefinition ReviewColumn => RootLayout.ColumnDefinitions[4];
+    // Column definitions get no generated fields, so address them by index:
+    // 0 rail, 1 navigator, 2 splitter, 3 workspace, 4 splitter, 5 review queue.
+    private ColumnDefinition NavigatorColumn => RootLayout.ColumnDefinitions[1];
+    private ColumnDefinition NavigatorSplitterColumn => RootLayout.ColumnDefinitions[2];
+    private ColumnDefinition ReviewSplitterColumn => RootLayout.ColumnDefinitions[4];
+    private ColumnDefinition ReviewColumn => RootLayout.ColumnDefinitions[5];
 
-    private void OnToggleSidebarClick(object? sender, RoutedEventArgs e)
+    private void OnToggleNavigatorClick(object? sender, RoutedEventArgs e)
     {
-        var hidden = SidebarColumn.Width.Value <= 0;
+        var hidden = NavigatorColumn.Width.Value <= 0;
 
         if (hidden)
         {
-            SidebarColumn.Width = _sidebarWidth;
-            SidebarSplitterColumn.Width = PanelSplitterWidth;
-            SidebarPanel.IsVisible = true;
+            NavigatorColumn.Width = _navigatorWidth;
+            NavigatorSplitterColumn.Width = PanelSplitterWidth;
+            NavigatorPanel.IsVisible = true;
         }
         else
         {
-            _sidebarWidth = new GridLength(Math.Max(SidebarColumn.ActualWidth, 220));
-            SidebarPanel.IsVisible = false;
-            SidebarColumn.Width = new GridLength(0);
-            SidebarSplitterColumn.Width = new GridLength(0);
+            _navigatorWidth = new GridLength(Math.Max(NavigatorColumn.ActualWidth, 200));
+            NavigatorPanel.IsVisible = false;
+            NavigatorColumn.Width = new GridLength(0);
+            NavigatorSplitterColumn.Width = new GridLength(0);
         }
 
         UpdatePanelButtons();
@@ -107,9 +108,9 @@ public partial class MainView : UserControl
 
     private void UpdatePanelButtons()
     {
-        var sidebarHidden = SidebarColumn.Width.Value <= 0;
-        SidebarToggleIcon.Text = sidebarHidden ? Symbols.LeftPanelOpen : Symbols.LeftPanelClose;
-        ToolTip.SetTip(SidebarToggleButton, sidebarHidden ? "Show the note list" : "Hide the note list");
+        var navigatorHidden = NavigatorColumn.Width.Value <= 0;
+        NavigatorToggleIcon.Text = navigatorHidden ? Symbols.LeftPanelOpen : Symbols.LeftPanelClose;
+        ToolTip.SetTip(NavigatorToggleButton, navigatorHidden ? "Show the navigator" : "Hide the navigator");
 
         var reviewHidden = ReviewColumn.Width.Value <= 0;
         ReviewToggleIcon.Text = reviewHidden ? Symbols.RightPanelOpen : Symbols.RightPanelClose;
@@ -171,6 +172,17 @@ public partial class MainView : UserControl
     }
 
     // --------------------------------------------------------------- sidebar
+
+    /// <summary>Puts the caret in the search box, query selected, ready to replace.</summary>
+    public void FocusSearch()
+    {
+        // A collapsed navigator would take the focus with it.
+        if (NavigatorColumn.Width.Value <= 0)
+            OnToggleNavigatorClick(null, new RoutedEventArgs());
+
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {

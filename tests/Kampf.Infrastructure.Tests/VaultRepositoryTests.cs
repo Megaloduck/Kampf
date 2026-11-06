@@ -142,7 +142,8 @@ public sealed class VaultRepositoryTests : IDisposable
         var answer = ChatMessage.Create(
             ChatMessage.AssistantRole,
             "Both notes discuss modularity [1].",
-            "[{\"noteId\":\"n1\",\"noteTitle\":\"X\"}]");
+            "[{\"noteId\":\"n1\",\"noteTitle\":\"X\"}]",
+            "This answer cites no source \u2014 treat it as unverified.");
 
         await _repo.SaveChatMessageAsync(question);
         await _repo.SaveChatMessageAsync(answer);
@@ -151,9 +152,28 @@ public sealed class VaultRepositoryTests : IDisposable
 
         Assert.Equal(2, messages.Count);
         Assert.True(messages[0].IsUser);
+        Assert.Null(messages[0].Warning);
         Assert.Equal("What connects X and Y?", messages[0].Text);
         Assert.Equal("Both notes discuss modularity [1].", messages[1].Text);
         Assert.Contains("\"noteId\":\"n1\"", messages[1].CitationsJson);
+
+        // The reason an answer should not be trusted has to survive a restart.
+        Assert.Contains("unverified", messages[1].Warning);
+    }
+
+    [Fact]
+    public async Task Clearing_the_chat_history_keeps_notes()
+    {
+        await _repo.InitializeAsync();
+
+        await _repo.SaveNoteAsync(Note.Create("Modularity", "modularity compares edge density"));
+        await _repo.SaveChatMessageAsync(ChatMessage.Create(ChatMessage.UserRole, "What connects X and Y?"));
+        await _repo.SaveChatMessageAsync(ChatMessage.Create(ChatMessage.AssistantRole, "A cited answer [1]."));
+
+        await _repo.DeleteChatMessagesAsync();
+
+        Assert.Empty(await _repo.ListChatMessagesAsync());
+        Assert.Single(await _repo.ListNotesAsync());
     }
 
     [Fact]

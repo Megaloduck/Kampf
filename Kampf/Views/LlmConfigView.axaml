@@ -1,0 +1,153 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="640"
+             x:Class="Kampf.Views.LlmConfigView"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding IsLlmConfigView}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                Padding="24,16,24,14"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Spacing="5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="icon"
+                               FontSize="16"
+                               VerticalAlignment="Center"
+                               Text="{x:Static controls:Symbols.Handyman}"
+                               Foreground="{DynamicResource AccentBrush}"/>
+                    <TextBlock Text="LLM CONFIGURATION" Classes="section" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Embeddings and the local model that answers in Idea-Craft. Nothing is sent to a hosted API."
+                           Classes="meta"
+                           FontSize="10.5"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="24,18,24,28" Spacing="14" MaxWidth="820" HorizontalAlignment="Left">
+
+                <Border Background="{DynamicResource PanelAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14">
+                    <StackPanel Spacing="9">
+                        <TextBlock Text="MODELS" Classes="section"/>
+
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Embeddings" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="{Binding EmbeddingLabel}" Classes="meta" FontSize="11"/>
+                            <TextBlock Grid.Row="1" Text="Answering" FontSize="12" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding ChatModelLabel}"
+                                       Classes="meta"
+                                       FontSize="11"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+
+                        <!-- Chosen here instead of in environment variables, and
+                             applied without restarting the app. -->
+                        <Border Background="{DynamicResource PanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="12,10">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="LOCAL MODEL SERVER" Classes="section" FontSize="9.5"/>
+
+                                <TextBox Text="{Binding ChatServerUrl, Mode=TwoWay}"
+                                         Watermark="http://localhost:1234/v1"
+                                         FontSize="11.5"
+                                         Padding="8,6"/>
+
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Text="{Binding ChatModelName, Mode=TwoWay}"
+                                             Watermark="model the server serves, e.g. ornith-1.0-9b"
+                                             FontSize="11.5"
+                                             Padding="8,6"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="Ollama"
+                                              IsChecked="{Binding ChatUsesOllama, Mode=TwoWay}"
+                                              Margin="10,0,0,0"
+                                              FontSize="11"
+                                              VerticalAlignment="Center"
+                                              ToolTip.Tip="Tick when the URL is an Ollama server, e.g. http://localhost:11434"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="primary"
+                                            Padding="14,5"
+                                            FontSize="11"
+                                            Command="{Binding ApplyChatModelCommand}">
+                                        <TextBlock Text="Apply"/>
+                                    </Button>
+                                    <Button Classes="ghost"
+                                            Padding="12,5"
+                                            FontSize="11"
+                                            Command="{Binding DetectChatModelsCommand}"
+                                            ToolTip.Tip="Ask the server which models it serves">
+                                        <TextBlock Text="Detect models"/>
+                                    </Button>
+                                    <Button Classes="ghost"
+                                            Padding="12,5"
+                                            FontSize="11"
+                                            Command="{Binding CheckChatModelCommand}"
+                                            ToolTip.Tip="Check that the configured model is reachable and served">
+                                        <TextBlock Text="Check"/>
+                                    </Button>
+                                    <Button Classes="ghost"
+                                            Padding="12,5"
+                                            FontSize="11"
+                                            Command="{Binding ClearChatModelCommand}"
+                                            ToolTip.Tip="Forget the saved server and answer with the cited passages">
+                                        <TextBlock Text="Clear"/>
+                                    </Button>
+                                </StackPanel>
+
+                                <ItemsControl ItemsSource="{Binding ChatModelChoices}"
+                                              IsVisible="{Binding HasChatModelChoices}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ChatModelChoiceViewModel">
+                                            <Button Classes="link"
+                                                    Margin="0,0,12,4"
+                                                    Command="{Binding UseCommand}"
+                                                    ToolTip.Tip="Use this model">
+                                                <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{Binding ChatModelHealth}"
+                                           IsVisible="{Binding HasChatModelHealth}"
+                                           Classes="meta"
+                                           FontSize="10.5"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Runs against a local server: LM Studio or llama.cpp on http://localhost:1234/v1, or Ollama on http://localhost:11434. Nothing leaves this machine. Leave both fields empty to fall back to KAMPF_CHAT_URL / KAMPF_OLLAMA_URL, and configure embeddings with KAMPF_EMBEDDING_MODEL."
+                                   Classes="meta"
+                                   FontSize="10.5"
+                                   TextWrapping="Wrap"
+                                   LineHeight="16"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

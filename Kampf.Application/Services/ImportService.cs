@@ -1,10 +1,19 @@
+using System.Security.Cryptography;
 using Kampf.Application.Abstractions;
 using Kampf.Application.Models;
 using Kampf.Domain.Entities;
 
 namespace Kampf.Application.Services;
 
-public sealed record ImportResult(PdfDocument Document, PdfExtraction Extraction);
+/// <summary>
+/// The paper an import landed on. <see cref="AlreadyPresent"/> means the vault
+/// already had it, so nothing was copied, parsed or indexed: the caller should
+/// open the existing paper rather than treat this as a fresh import.
+/// </summary>
+public sealed record ImportResult(
+    PdfDocument Document,
+    PdfExtraction? Extraction,
+    bool AlreadyPresent = false);
 
 /// <summary>
 /// Import a PDF: copy it into the vault, extract text + citation metadata, and
@@ -35,15 +44,35 @@ public sealed class ImportService
         if (!File.Exists(filePath))
             throw new FileNotFoundException("PDF not found.", filePath);
 
-        var storedPath = await _files.StoreDocumentAsync(filePath, ct);
-        var extraction = await _extractor.ExtractAsync(storedPath, ct);
+        var known = await _repo.ListDocumentsAsync(ct);
+        var contentHash = await HashAsync(filePath, ct);
+
+        // The same file imported twice would duplicate the paper, its page text,
+        // its vectors and its graph node — and the notes anchored to the two
+        // copies would quietly drift apart. Checked before anything is copied.
+        var duplicate = FindDuplicate(known, contentHash, doi: null);
+        if (duplicate is not null)
+            return new ImportResult(duplicate, Extraction: null, AlreadyPresent: true);
+
+        var extraction = await _extractor.ExtractAsync(filePath, ct);
         var citation = CitationService.FromExtraction(extraction);
 
+        var doi = citation.Doi
+                  ?? CitationService.FindDoi(string.Concat(extraction.Pages.Take(2).Select(p => p.Text)));
+
+        // A re-download or a re-saved file differs byte for byte but is the same
+        // paper, so the DOI is the second chance at recognising it.
+        duplicate = FindDuplicate(known, contentHash, doi);
+        if (duplicate is not null)
+            return new ImportResult(duplicate, extraction, AlreadyPresent: true);
+
+        var storedPath = await _files.StoreDocumentAsync(filePath, ct);
+
         var document = PdfDocument.Create(storedPath, citation.Title, extraction.PageCount);
+        document.ContentHash = contentHash;
         document.Authors = citation.Authors;
         document.Year = citation.Year;
-        document.Doi = citation.Doi
-                       ?? CitationService.FindDoi(string.Concat(extraction.Pages.Take(2).Select(p => p.Text)));
+        document.Doi = doi;
         document.ItemType = extraction.ItemType;
         document.Abstract = extraction.Abstract;
         document.Publication = extraction.Publication;
@@ -82,6 +111,42 @@ public sealed class ImportService
             ct);
 
         return new ImportResult(document, extraction);
+    }
+
+    /// <summary>SHA-256 of the file, as hex, recorded so re-imports are recognised.</summary>
+    private static async Task<string> HashAsync(string filePath, CancellationToken ct)
+    {
+        await using var stream = File.OpenRead(filePath);
+        var digest = await SHA256.HashDataAsync(stream, ct);
+        return Convert.ToHexString(digest);
+    }
+
+    /// <summary>
+    /// The paper this file already is, by content hash or by DOI. Either match is
+    /// conclusive: two copies of one paper cannot be told apart in the graph.
+    /// </summary>
+    private static PdfDocument? FindDuplicate(
+        IReadOnlyList<PdfDocument> known,
+        string contentHash,
+        string? doi)
+    {
+        foreach (var document in known)
+        {
+            if (!string.IsNullOrWhiteSpace(document.ContentHash) &&
+                document.ContentHash.Equals(contentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return document;
+            }
+
+            if (!string.IsNullOrWhiteSpace(doi) &&
+                !string.IsNullOrWhiteSpace(document.Doi) &&
+                document.Doi.Trim().Equals(doi.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return document;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

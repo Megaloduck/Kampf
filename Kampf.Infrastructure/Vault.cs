@@ -33,7 +33,13 @@ public sealed class Vault
     public IEmbeddingProvider Embeddings { get; }
 
     /// <summary>Local chat model, or null when none is configured (chat stays extractive).</summary>
-    public IChatModel? Chat { get; }
+    public IChatModel? Chat { get; private set; }
+
+    /// <summary>
+    /// Points the vault at a different local model. Settings applies this at
+    /// runtime so a model can be chosen without restarting the app.
+    /// </summary>
+    public void UseChatModel(IChatModel? model) => Chat = model;
 
     /// <summary>Paper page text and page vectors: the searchable body of imported PDFs.</summary>
     public DocumentPageIndex Pages { get; }
@@ -55,7 +61,10 @@ public sealed class Vault
         PdfExtractor = new PdfPigExtractor();
         PageRenderer = new PdfPageRenderer();
         Embeddings = EmbeddingProviders.CreateFromEnvironment();
-        Chat = ChatModels.CreateFromEnvironment();
+
+        // A model chosen in Settings wins; the environment stays the fallback so
+        // an existing setup keeps working after this file is introduced.
+        Chat = ChatModelSettings.Load(rootPath).CreateModel() ?? ChatModels.CreateFromEnvironment();
         Pages = new DocumentPageIndex(Repository, PdfExtractor, Embeddings);
         _keyHex = keyHex;
         IsEncrypted = keyHex is not null;
