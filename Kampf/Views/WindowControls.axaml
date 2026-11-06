@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Kampf.Controls"
+             x:Class="Kampf.Views.WindowControls"
+             IsVisible="False">
+
+    <!-- The window is drawn without system chrome, so these are the only
+         minimize / maximize / close buttons it has. -->
+    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+        <Button x:Name="MinimizeButton"
+                Classes="caption"
+                Click="OnMinimizeClick"
+                ToolTip.Tip="Minimize">
+            <TextBlock Classes="icon"
+                       FontSize="16"
+                       Text="{x:Static controls:Symbols.Minimize}"/>
+        </Button>
+
+        <Button x:Name="MaximizeButton"
+                Classes="caption"
+                Click="OnMaximizeClick"
+                ToolTip.Tip="Maximize">
+            <Panel>
+                <TextBlock x:Name="MaximizeIcon"
+                           Classes="icon"
+                           FontSize="16"
+                           Text="{x:Static controls:Symbols.Maximize}"/>
+                <TextBlock x:Name="RestoreIcon"
+                           Classes="icon"
+                           FontSize="16"
+                           Text="{x:Static controls:Symbols.Restore}"
+                           IsVisible="False"/>
+            </Panel>
+        </Button>
+
+        <Button Classes="caption close"
+                Click="OnCloseClick"
+                ToolTip.Tip="Close">
+            <TextBlock Classes="icon"
+                       FontSize="16"
+                       Text="{x:Static controls:Symbols.Close}"/>
+        </Button>
+    </StackPanel>
+</UserControl>

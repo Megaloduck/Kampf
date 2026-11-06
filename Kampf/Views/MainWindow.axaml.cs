@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Kampf.Controls;
 using Kampf.ViewModels;
@@ -21,6 +22,17 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // The shell draws its own caption buttons in the header's top-right
+        // corner, so on Windows the window runs without system chrome and its
+        // content reaches the frame. macOS and Linux keep their native title
+        // bar: traffic lights and window-manager decorations are the platform's
+        // convention, and the header control hides itself there.
+        if (OperatingSystem.IsWindows())
+        {
+            ExtendClientAreaToDecorationsHint = true;
+            ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;
+        }
 
         // Shortcuts are handled on the way down, before a focused text box can
         // swallow them: Ctrl+S must save the note, not reach the editor as text.

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -49,6 +50,17 @@ public partial class MainView : UserControl
         // A newly loaded note replaces the editor's undo history.
         if (e.PropertyName is nameof(MainViewModel.HasActiveNote) or nameof(MainViewModel.EditorBody))
             UpdateHistoryButtons();
+    }
+
+    // ------------------------------------------------------------ window chrome
+
+    private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e) =>
+        WindowControls.BeginDrag(TopLevel.GetTopLevel(this), e);
+
+    private void OnHeaderDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (WindowControls.IsDragSurface(e.Source))
+            WindowControls.ToggleMaximize(TopLevel.GetTopLevel(this) as Window);
     }
 
     // --------------------------------------------------------- panel layout

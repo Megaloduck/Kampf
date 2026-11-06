@@ -13,6 +13,17 @@ public partial class UnlockView : UserControl
         InitializeComponent();
     }
 
+    // The window runs without system chrome, so its title-bar area is this
+    // surface: pressing it moves the window, double-clicking maximizes.
+    private void OnSurfacePointerPressed(object? sender, PointerPressedEventArgs e) =>
+        WindowControls.BeginDrag(TopLevel.GetTopLevel(this), e);
+
+    private void OnSurfaceDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (WindowControls.IsDragSurface(e.Source))
+            WindowControls.ToggleMaximize(TopLevel.GetTopLevel(this) as Window);
+    }
+
     private void OnPassphraseKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)

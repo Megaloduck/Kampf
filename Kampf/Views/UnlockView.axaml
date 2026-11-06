@@ -2,72 +2,83 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Kampf.ViewModels"
              xmlns:controls="using:Kampf.Controls"
+             xmlns:views="clr-namespace:Kampf.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="880"
              x:Class="Kampf.Views.UnlockView"
              x:DataType="vm:UnlockViewModel"
              IsVisible="False"
-             Background="{DynamicResource BgBrush}">
+             Background="{DynamicResource BgBrush}"
+             PointerPressed="OnSurfacePointerPressed"
+             DoubleTapped="OnSurfaceDoubleTapped">
 
-    <Border MaxWidth="440"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Background="{DynamicResource PanelAltBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="1"
-            CornerRadius="12"
-            Padding="28,26">
-        <StackPanel Spacing="14">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <TextBlock Classes="icon"
-                           FontSize="22"
-                           Text="{x:Static controls:Symbols.ShieldLock}"
-                           Foreground="{DynamicResource AccentBrush}"/>
-                <TextBlock Text="KAMPF"
-                           FontSize="16"
-                           FontWeight="Bold"
-                           LetterSpacing="3"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
+    <Panel>
+        <Border MaxWidth="440"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{DynamicResource PanelAltBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="28,26">
+            <StackPanel Spacing="14">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="icon"
+                               FontSize="22"
+                               Text="{x:Static controls:Symbols.ShieldLock}"
+                               Foreground="{DynamicResource AccentBrush}"/>
+                    <TextBlock Text="KAMPF"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               LetterSpacing="3"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
 
-            <StackPanel Spacing="4">
-                <TextBlock Text="This vault is encrypted" FontSize="15" FontWeight="SemiBold"/>
-                <TextBlock Text="Enter the passphrase to unlock the database. Nothing is written until it opens."
-                           Classes="meta"
+                <StackPanel Spacing="4">
+                    <TextBlock Text="This vault is encrypted" FontSize="15" FontWeight="SemiBold"/>
+                    <TextBlock Text="Enter the passphrase to unlock the database. Nothing is written until it opens."
+                               Classes="meta"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               LineHeight="17"/>
+                </StackPanel>
+
+                <TextBox x:Name="PassphraseBox"
+                         Text="{Binding Passphrase, Mode=TwoWay}"
+                         Watermark="Vault passphrase"
+                         PasswordChar="●"
+                         FontSize="13"
+                         Padding="11,9"
+                         KeyDown="OnPassphraseKeyDown"/>
+
+                <Button Classes="primary"
+                        HorizontalAlignment="Stretch"
+                        Padding="14,9"
+                        Command="{Binding UnlockCommand}"
+                        IsEnabled="{Binding !IsUnlocking}"
+                        HorizontalContentAlignment="Center">
+                    <TextBlock Text="Unlock vault"/>
+                </Button>
+
+                <TextBlock Text="{Binding Error}"
+                           IsVisible="{Binding HasError}"
+                           Foreground="{DynamicResource DangerBrush}"
                            FontSize="11"
+                           TextWrapping="Wrap"/>
+
+                <TextBlock Text="{Binding VaultPath}"
+                           Classes="muted"
+                           FontSize="10"
                            TextWrapping="Wrap"
-                           LineHeight="17"/>
+                           Margin="0,4,0,0"/>
             </StackPanel>
+        </Border>
 
-            <TextBox x:Name="PassphraseBox"
-                     Text="{Binding Passphrase, Mode=TwoWay}"
-                     Watermark="Vault passphrase"
-                     PasswordChar="●"
-                     FontSize="13"
-                     Padding="11,9"
-                     KeyDown="OnPassphraseKeyDown"/>
-
-            <Button Classes="primary"
-                    HorizontalAlignment="Stretch"
-                    Padding="14,9"
-                    Command="{Binding UnlockCommand}"
-                    IsEnabled="{Binding !IsUnlocking}"
-                    HorizontalContentAlignment="Center">
-                <TextBlock Text="Unlock vault"/>
-            </Button>
-
-            <TextBlock Text="{Binding Error}"
-                       IsVisible="{Binding HasError}"
-                       Foreground="{DynamicResource DangerBrush}"
-                       FontSize="11"
-                       TextWrapping="Wrap"/>
-
-            <TextBlock Text="{Binding VaultPath}"
-                       Classes="muted"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,0"/>
-        </StackPanel>
-    </Border>
+        <!-- The shell is hidden while the vault is locked, so the window keeps
+             its own buttons and drag area here. -->
+        <views:WindowControls HorizontalAlignment="Right"
+                              VerticalAlignment="Top"
+                              Margin="0,9,12,0"/>
+    </Panel>
 </UserControl>

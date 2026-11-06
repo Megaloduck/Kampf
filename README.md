@@ -101,6 +101,12 @@ that do not need a sync transport: publishing, an Android head, and a measured
   thing that creates the edge.
 - **Dark / light theme** — a header button switches the whole workspace; the
 graph canvas and markdown preview follow the active theme.
+- **Window chrome** — on Windows the shell's header reaches the top of the
+  window and carries the app's own minimize, maximize/restore and close buttons
+  in its top-right corner, so the controls belong to the app rather than to a
+  system title bar. The header is the drag area (the lock screen has its own
+  one), double-clicking it maximizes and restores, and macOS and Linux keep
+  their native title bar.
 - **Deletion** — notes and imported papers can be deleted (both ask for a second  click). Deleting a paper removes its stored PDF, extracted page text, page
   vectors, highlights and edges; it is refused while notes still carry page
   anchors into it.

@@ -47,4 +47,7 @@ public static class Symbols
     public const string Keyboard = "\uE312";
     public const string ExpandMore = "\uE5CF";
     public const string ChevronRight = "\uE5CC";
+    public const string Minimize = "\uE931";
+    public const string Maximize = "\uE930";
+    public const string Restore = "\uE3E0";
 }

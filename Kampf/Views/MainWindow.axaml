@@ -12,7 +12,11 @@
         Title="Kampf"
         Width="1420" Height="900"
         MinWidth="1024" MinHeight="640">
-    <Panel>
+    <!-- A maximized window drawn without system chrome hangs its border off the
+         screen, so the shell follows the off-screen margin: maximized, the
+         header and its caption buttons sit on the screen edge instead of being
+         clipped by it. Zero at any other size, and on every other platform. -->
+    <Panel Margin="{Binding $parent[Window].OffScreenMargin}">
         <views:MainView x:Name="RootView" />
         <!-- Shown instead of the shell until an encrypted vault is unlocked. -->
         <views:UnlockView x:Name="LockView" />
