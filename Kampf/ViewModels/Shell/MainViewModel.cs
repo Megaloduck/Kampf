@@ -1692,7 +1692,7 @@ public partial class MainViewModel : ViewModelBase
             folderNames.Add(note.Tags.Count > 0 ? note.Tags[0].Name : UnfiledFolder);
 
         var tagCount = _allNotes.SelectMany(n => n.Tags).Select(t => t.Name).Distinct().Count();
-        var trash = TrashRows.Count > 0 ? $" \u00b7 {TrashRows.Count} in trash" : string.Empty;
+        var trash = TrashRows.Count > 0 ? $" \u00b7 {TrashRows.Count} trash" : string.Empty;
         CountsSummary = $"{folderNames.Count} folders \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers \u00b7 {_allLinks.Count} links \u00b7 {tagCount} tags{trash}";
     }
 
