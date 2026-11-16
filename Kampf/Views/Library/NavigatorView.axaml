@@ -1,0 +1,174 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="268" d:DesignHeight="720"
+             x:Class="Kampf.Views.NavigatorView"
+             x:DataType="vm:MainViewModel">
+    <!-- Search, folders and note rows. The search box lives here rather than in the
+         shell, so Ctrl+F only has to ask this control for focus. -->
+    <Border MinWidth="200"
+            Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,12,10,8">
+                <TextBox x:Name="SearchBox"
+                         Padding="30,6,9,6"
+                         Text="{Binding SearchQuery, Mode=TwoWay}"
+                         Watermark="Search text or tag:name"
+                         AutomationProperties.Name="Search notes and papers"
+                         ToolTip.Tip="Search text or tag:name (Ctrl+F)"
+                         KeyDown="OnSearchKeyDown">
+                    <TextBox.InnerLeftContent>
+                        <TextBlock Classes="icon"
+                                   FontSize="15"
+                                   Margin="9,0,0,0"
+                                   Text="{x:Static controls:Symbols.Search}"
+                                   Foreground="{DynamicResource FaintBrush}"/>
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+
+                <Button Grid.Column="1"
+                        Classes="ghost iconButton"
+                        Margin="6,0,0,0"
+                        Command="{Binding NewNoteCommand}"
+                        AutomationProperties.Name="New note"
+                        ToolTip.Tip="New note (Ctrl+N)">
+                    <TextBlock Classes="icon"
+                               FontSize="18"
+                               Text="{x:Static controls:Symbols.NoteAdd}"/>
+                </Button>
+            </Grid>
+
+            <!-- What the search found, kept where the old list header was. -->
+            <Border Grid.Row="1"
+                    IsVisible="{Binding HasSearchResults}"
+                    Margin="12,0,11,6">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding ListHeader}"
+                               Classes="section"
+                               FontSize="9"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="1"
+                            Classes="link"
+                            FontSize="10"
+                            Command="{Binding ClearSearchCommand}"
+                            ToolTip.Tip="Show every note again">
+                        <TextBlock Text="Clear"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="2">
+                <ItemsControl ItemsSource="{Binding NavigatorFolders}" Margin="8,0,8,10">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NavigatorFolderViewModel">
+                            <StackPanel Margin="0,0,0,3">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Button Classes="folderRow"
+                                            Command="{Binding ToggleCommand}"
+                                            ToolTip.Tip="{Binding Title}">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                            <Panel Width="16" Height="16" VerticalAlignment="Center">
+                                                <TextBlock Classes="icon"
+                                                           FontSize="16"
+                                                           Text="{x:Static controls:Symbols.ExpandMore}"
+                                                           Foreground="{DynamicResource FaintBrush}"
+                                                           IsVisible="{Binding IsExpanded}"/>
+                                                <TextBlock Classes="icon"
+                                                           FontSize="16"
+                                                           Text="{x:Static controls:Symbols.ChevronRight}"
+                                                           Foreground="{DynamicResource FaintBrush}"
+                                                           IsVisible="{Binding IsCollapsed}"/>
+                                            </Panel>
+
+                                            <TextBlock Grid.Column="1"
+                                                       Classes="icon"
+                                                       FontSize="15"
+                                                       Margin="4,0,6,0"
+                                                       Text="{x:Static controls:Symbols.Folder}"
+                                                       Foreground="{DynamicResource MutedBrush}"/>
+
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Title}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding CountLabel}"
+                                                       Classes="meta"
+                                                       FontSize="10.5"
+                                                       Margin="6,0,2,0"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button Grid.Column="1"
+                                            Classes="addRowNote"
+                                            IsVisible="{Binding CanAddNote}"
+                                            Command="{Binding AddNoteCommand}"
+                                            ToolTip.Tip="New note in this folder">
+                                        <TextBlock Classes="icon"
+                                                   FontSize="15"
+                                                   Text="{x:Static controls:Symbols.Add}"
+                                                   Foreground="{DynamicResource MutedBrush}"/>
+                                    </Button>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding Rows}"
+                                              IsVisible="{Binding IsExpanded}"
+                                              Margin="18,1,0,2">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:NavigatorRowViewModel">
+                                            <Button Classes="treeRow"
+                                                    Classes.active="{Binding IsSelected}"
+                                                    Command="{Binding SelectCommand}"
+                                                    ToolTip.Tip="{Binding ToolTip}">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <TextBlock Classes="icon"
+                                                               FontSize="13"
+                                                               Margin="0,0,7,0"
+                                                               Text="{x:Static controls:Symbols.Article}"
+                                                               Foreground="{DynamicResource FaintBrush}"/>
+
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Title}"
+                                                               FontSize="12"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Detail}"
+                                                               IsVisible="{Binding HasDetail}"
+                                                               Classes="meta"
+                                                               FontSize="10"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Border Grid.Row="3"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="14,8">
+                <TextBlock Text="{Binding CountsSummary}"
+                           Classes="meta"
+                           FontSize="10"
+                           TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

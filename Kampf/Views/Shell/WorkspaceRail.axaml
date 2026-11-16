@@ -1,0 +1,125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="55" d:DesignHeight="720"
+             x:Class="Kampf.Views.WorkspaceRail"
+             x:DataType="vm:MainViewModel">
+    <!-- The rail is workspaces only: every entry is a command on MainViewModel,
+         so this control needs no code-behind. Tooltips open to the right so they
+         never cover the navigator, and each button carries an accessible name for
+         screen readers (the glyph alone says nothing to them). -->
+    <Border Background="{DynamicResource BgBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,1,0"
+            Padding="10">
+        <Grid RowDefinitions="*,Auto">
+            <StackPanel Spacing="6">
+                <Button Classes="rail"
+                        Classes.active="{Binding IsLibraryActive}"
+                        Command="{Binding ShowLibraryCommand}"
+                        AutomationProperties.Name="Library"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Library">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsLibraryActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Library}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsGraphActive}"
+                        Command="{Binding ShowGraphCommand}"
+                        AutomationProperties.Name="Graph"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Graph">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsGraphActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Hub}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsChatActive}"
+                        Command="{Binding ShowChatCommand}"
+                        AutomationProperties.Name="Idea Craft"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Idea Craft">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsChatActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Psychology}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsLlmConfigActive}"
+                        Command="{Binding ShowLlmConfigurationCommand}"
+                        AutomationProperties.Name="LLM Configuration"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="LLM Configuration">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsLlmConfigActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Handyman}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsDataSharingActive}"
+                        Command="{Binding ShowDataSharingCommand}"
+                        AutomationProperties.Name="Data sharing and Connection"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Data sharing and Connection">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsDataSharingActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.CloudSync}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsExtensionsActive}"
+                        Command="{Binding ShowExtensionsCommand}"
+                        AutomationProperties.Name="Extension"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Extension">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsExtensionsActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Extension}"/>
+                </Button>
+
+                <Button Classes="rail"
+                        Classes.active="{Binding IsTrashActive}"
+                        Command="{Binding ShowTrashCommand}"
+                        AutomationProperties.Name="Trash bin"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Trash bin">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsTrashActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Delete}"/>
+                </Button>
+            </StackPanel>
+
+            <!-- Settings is pinned to the foot of the rail and set apart from the
+                 workspaces, because it is not one of them. -->
+            <StackPanel Grid.Row="1" Spacing="8">
+                <Border Height="1"
+                        Margin="4,0"
+                        Background="{DynamicResource BorderBrush}"/>
+                <Button Classes="rail"
+                        Classes.active="{Binding IsSettingsActive}"
+                        Command="{Binding ShowSettingsCommand}"
+                        AutomationProperties.Name="Settings"
+                        ToolTip.Placement="Right"
+                        ToolTip.Tip="Settings">
+                    <TextBlock Classes="icon"
+                               Classes.railActive="{Binding IsSettingsActive}"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.Settings}"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

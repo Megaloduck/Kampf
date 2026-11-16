@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Kampf/Views/RowTemplates.axaml"/>
+                <ResourceInclude Source="avares://Kampf/Views/Reading/RowTemplates.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>

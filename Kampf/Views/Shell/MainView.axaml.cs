@@ -192,18 +192,6 @@ public partial class MainView : UserControl
         if (NavigatorColumn.Width.Value <= 0)
             OnToggleNavigatorClick(null, new RoutedEventArgs());
 
-        SearchBox.Focus();
-        SearchBox.SelectAll();
-    }
-
-    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || _bound is null)
-            return;
-
-        if (_bound.SearchCommand.CanExecute(null))
-            _bound.SearchCommand.Execute(null);
-
-        e.Handled = true;
+        NavigatorPanel.FocusSearch();
     }
 }
