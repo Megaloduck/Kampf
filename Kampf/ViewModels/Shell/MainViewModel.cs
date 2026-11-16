@@ -2597,10 +2597,18 @@ public partial class MainViewModel : ViewModelBase
             var decision = await _suggestionService.DecideAsync(row.Id, accept: true);
             await RefreshAsync();
 
-            if (decision.CreatedNoteId is not null)
+            if (decision.IsStale)
+            {
+                StatusMessage = "Suggestion dropped \u2014 " + decision.StaleReason;
+            }
+            else if (decision.CreatedNoteId is not null)
             {
                 SelectNoteById(decision.CreatedNoteId);
                 StatusMessage = "Note created and linked \u2014 the edge is now in your graph.";
+            }
+            else if (decision.AlreadyApplied)
+            {
+                StatusMessage = "Already linked \u2014 the edge was in your graph, so nothing changed.";
             }
             else
             {
@@ -2768,6 +2776,8 @@ public partial class MainViewModel : ViewModelBase
             // Same for page text: a vault built before it was stored becomes
             // searchable the first time each paper is opened.
             if (extraction is not null && await _pageIndex.EnsureTextAsync(document, extraction.Pages))
+                _ = IndexPaperPagesAsync(new[] { document });
+            else if (extraction is not null && await _pageIndex.RepairTextAsync(document, extraction.Pages) > 0)
                 _ = IndexPaperPagesAsync(new[] { document });
 
             ReaderCitation = BuildCitationLine(document);

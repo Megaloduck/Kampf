@@ -180,90 +180,31 @@ public sealed class PdfPageRenderer : IPdfPageRenderer
     // ----------------------------------------------------------------- layout
 
     /// <summary>
-    /// Rebuilds the page text exactly the way imports normalise it, then walks
-    /// the words in reading order to find each one's offset in that text.
+    /// The page text and the boxes that place its words, both from the same
+    /// assembler the importer uses — a stored quote is a character range, so the
+    /// text this draws over must be the text that was stored.
     /// </summary>
     private static PdfPageLayout BuildLayout(Page page, int number)
     {
-        string raw;
-        try
-        {
-            raw = page.Text ?? string.Empty;
-        }
-        catch (Exception)
-        {
-            raw = string.Empty;
-        }
-
-        var text = NormalizeWhitespace(raw);
         var widthPoints = (double)page.Width;
         var heightPoints = (double)page.Height;
 
         if (widthPoints <= 0 || heightPoints <= 0)
-            return new PdfPageLayout(number, text, 612, 792, Array.Empty<PdfWordBox>());
+            return new PdfPageLayout(number, string.Empty, 612, 792, Array.Empty<PdfWordBox>());
 
-        var boxes = new List<PdfWordBox>();
-        var cursor = 0;
+        var layout = PdfPageTextBuilder.Build(page);
 
-        IReadOnlyList<Word> words;
-        try
-        {
-            words = page.GetWords().ToList();
-        }
-        catch (Exception)
-        {
-            words = Array.Empty<Word>();
-        }
+        var boxes = layout.Words
+            .Select(word => new PdfWordBox(
+                word.Text,
+                word.Start,
+                word.Text.Length,
+                Math.Clamp(word.Left / widthPoints, 0, 1),
+                Math.Clamp(word.Top / heightPoints, 0, 1),
+                Math.Clamp(word.Width / widthPoints, 0, 1),
+                Math.Clamp(word.Height / heightPoints, 0, 1)))
+            .ToList();
 
-        foreach (var word in words)
-        {
-            var token = word.Text?.Trim();
-            if (string.IsNullOrEmpty(token) || cursor >= text.Length)
-                continue;
-
-            var start = text.IndexOf(token, cursor, StringComparison.Ordinal);
-            if (start < 0)
-                continue;
-
-            var box = word.BoundingBox;
-            var x = (double)box.Left / widthPoints;
-            var w = (double)box.Width / widthPoints;
-            var h = (double)box.Height / heightPoints;
-            var y = 1 - (double)box.Top / heightPoints;
-
-            boxes.Add(new PdfWordBox(
-                token,
-                start,
-                token.Length,
-                Math.Clamp(x, 0, 1),
-                Math.Clamp(y, 0, 1),
-                Math.Clamp(w, 0, 1),
-                Math.Clamp(h, 0, 1)));
-
-            cursor = start + token.Length;
-        }
-
-        return new PdfPageLayout(number, text, widthPoints, heightPoints, boxes);
-    }
-
-    /// <summary>Same normalisation the importer applies, so offsets agree with stored text.</summary>
-    private static string NormalizeWhitespace(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-        var lines = text.Replace("\r\n", "\n").Split('\n');
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Length == 0)
-                continue;
-
-            if (builder.Length > 0)
-                builder.Append('\n');
-
-            builder.Append(trimmed);
-        }
-
-        return builder.ToString();
+        return new PdfPageLayout(number, layout.Text, widthPoints, heightPoints, boxes);
     }
 }

@@ -741,7 +741,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         return links;
     }
 
-    public async Task AddLinkAsync(Link link, CancellationToken ct = default)
+    public async Task<bool> AddLinkAsync(Link link, CancellationToken ct = default)
     {
         if (link.SourceId == link.TargetId)
             throw new InvalidOperationException("A note cannot link to itself.");
@@ -761,7 +761,11 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.Parameters.AddWithValue("$kind", (int)link.Kind);
             command.Parameters.AddWithValue("$rationale", (object?)link.Rationale ?? DBNull.Value);
             command.Parameters.AddWithValue("$created", ToDb(link.CreatedAt));
-            await command.ExecuteNonQueryAsync(ct);
+
+            // INSERT OR IGNORE is absorbed by UNIQUE(source_id, target_id, kind):
+            // zero rows affected means the edge was already there.
+            var inserted = await command.ExecuteNonQueryAsync(ct);
+            return inserted > 0;
         }
         finally
         {
@@ -1487,7 +1491,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         await using (var command = connection.CreateCommand())
         {
             command.CommandText = """
-                SELECT id, title, substr(authors, 1, 120) || ' \u00b7 ' || COALESCE(year, 'n.d.')
+                SELECT id, title, substr(authors, 1, 120) || ' · ' || COALESCE(year, 'n.d.')
                 FROM documents
                 WHERE deleted_at IS NULL AND (title LIKE $like OR authors LIKE $like)
                 ORDER BY imported_at DESC

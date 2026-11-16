@@ -31,8 +31,10 @@ public sealed class PdfPageView : Control
 
     private static readonly IBrush NoteBrush = new SolidColorBrush(Color.FromArgb(96, 250, 204, 21));
     private static readonly IBrush CitationBrush = new SolidColorBrush(Color.FromArgb(104, 96, 165, 250));
-    private static readonly IBrush MatchBrush = new SolidColorBrush(Color.FromArgb(88, 74, 222, 128));
-    private static readonly IBrush ActiveMatchBrush = new SolidColorBrush(Color.FromArgb(150, 251, 146, 60));
+    private static readonly IBrush MatchBrush = new SolidColorBrush(Color.FromArgb(120, 74, 222, 128));
+    private static readonly IBrush ActiveMatchBrush = new SolidColorBrush(Color.FromArgb(175, 251, 146, 60));
+    private static readonly IPen ActiveMatchPen =
+        new Pen(new SolidColorBrush(Color.FromArgb(230, 194, 65, 12)), 1.4);
     private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromArgb(120, 59, 130, 246));
 
     private int _anchor = -1;
@@ -151,8 +153,13 @@ public sealed class PdfPageView : Control
                 PageSpanKind.ActiveMatch => ActiveMatchBrush,
                 _ => NoteBrush,
             };
+
+            // The hit the reader is on gets an edge as well as a fill, so it
+            // still reads as the current one over dense text.
+            var pen = span.Kind == PageSpanKind.ActiveMatch ? ActiveMatchPen : null;
+
             foreach (var rect in SpanRects(words, span.Start, span.Start + span.Length, page))
-                context.DrawRectangle(brush, null, rect);
+                context.DrawRectangle(brush, pen, rect);
         }
 
         var (start, length) = SelectionRange;

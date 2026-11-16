@@ -109,11 +109,13 @@ public sealed class FakeVaultRepository : IVaultRepository
     public Task<IReadOnlyList<Link>> ListLinksAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Link>>(Links.ToList());
 
-    public Task AddLinkAsync(Link link, CancellationToken ct = default)
+    public Task<bool> AddLinkAsync(Link link, CancellationToken ct = default)
     {
-        if (!Links.Any(l => l.SourceId == link.SourceId && l.TargetId == link.TargetId && l.Kind == link.Kind))
-            Links.Add(link);
-        return Task.CompletedTask;
+        if (Links.Any(l => l.SourceId == link.SourceId && l.TargetId == link.TargetId && l.Kind == link.Kind))
+            return Task.FromResult(false);
+
+        Links.Add(link);
+        return Task.FromResult(true);
     }
 
     public Task DeleteLinkAsync(string linkId, CancellationToken ct = default)

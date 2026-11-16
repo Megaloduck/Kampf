@@ -50,6 +50,7 @@ public static class Symbols
     public const string Article = "\uEF42";
     public const string Keyboard = "\uE312";
     public const string ExpandMore = "\uE5CF";
+    public const string ChevronLeft = "\uE5CB";
     public const string ChevronRight = "\uE5CC";
     public const string Minimize = "\uE931";
     public const string Maximize = "\uE930";

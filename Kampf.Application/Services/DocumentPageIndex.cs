@@ -66,6 +66,44 @@ public sealed class DocumentPageIndex
     }
 
     /// <summary>
+    /// Replaces page text that the old single-line extraction stored for pages
+    /// that really have several lines — a two-column page used to be saved as one
+    /// unbroken line, which made it unreadable and unsearchable. Only that exact
+    /// shape is touched, and every page is written back because the repository
+    /// replaces a paper's pages as a set. Returns the pages written.
+    /// </summary>
+    public async Task<int> RepairTextAsync(
+        PdfDocument document,
+        IReadOnlyList<PdfPageText> pages,
+        CancellationToken ct = default)
+    {
+        if (pages.Count == 0)
+            return 0;
+
+        var stored = await _repo.ListDocumentPagesAsync(document.Id, ct);
+        if (stored.Count == 0)
+            return 0;
+
+        // Leave readable text alone: repair only applies when the stored pages
+        // are all single-line and the fresh read of them is not.
+        if (stored.Any(page => page.Text.Contains('\n')) || pages.All(page => !page.Text.Contains('\n')))
+            return 0;
+
+        var fresh = new Dictionary<int, string>(pages.Count);
+        foreach (var page in pages)
+            fresh[page.Page] = page.Text;
+
+        if (stored.All(page => fresh.TryGetValue(page.Page, out var text) && text == page.Text))
+            return 0;
+
+        await _repo.SaveDocumentPagesAsync(
+            pages.Select(page => new DocumentPage(document.Id, page.Page, page.Text)),
+            ct);
+
+        return pages.Count;
+    }
+
+    /// <summary>
     /// Brings page text and vectors up to date for the given papers: papers
     /// imported before page text was stored are extracted, and pages that are
     /// new, edited or unindexed for the active model are embedded. Returns the

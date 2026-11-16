@@ -403,9 +403,7 @@ public sealed class SuggestionEngine
             : $"{percent}% similar \u00b7 shares \u201c{string.Join("\u201d, \u201c", shared)}\u201d";
     }
 
-    private static (string, string) PairKey(string a, string b) =>
-        string.CompareOrdinal(a, b) <= 0 ? (a, b) : (b, a);
+    private static (string, string) PairKey(string a, string b) => SuggestionKeys.Pair(a, b);
 
-    private static (string, string) TagKey(string noteId, string tag) =>
-        (noteId, Tag.Normalize(tag));
+    private static (string, string) TagKey(string noteId, string tag) => SuggestionKeys.TagKey(noteId, tag);
 }

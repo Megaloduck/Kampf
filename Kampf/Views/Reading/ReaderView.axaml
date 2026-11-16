@@ -198,7 +198,7 @@
                                     <TextBlock Text="Brief this paper"/>
                                 </StackPanel>
                             </Button>
-                            <TextBlock Text="Writing\u2026"
+                            <TextBlock Text="Writing…"
                                        Classes="meta"
                                        IsVisible="{Binding IsBriefing}"
                                        VerticalAlignment="Center"/>
@@ -217,7 +217,7 @@
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,10,8">
                     <TextBox x:Name="PageSearchBox"
                              Text="{Binding ReaderSearchQuery, Mode=TwoWay}"
-                             Watermark="Search this paper\u2026"
+                             Watermark="Search this paper…"
                              FontSize="12"
                              Padding="8,5"
                              KeyDown="OnPageSearchKeyDown"/>
@@ -232,15 +232,21 @@
                             Classes="ghost"
                             Padding="7,3"
                             Command="{Binding PreviousReaderMatchCommand}"
-                            ToolTip.Tip="Previous match">
-                        <TextBlock Text="\u2191" FontSize="12"/>
+                            ToolTip.Tip="Previous match"
+                            AutomationProperties.Name="Previous match">
+                        <TextBlock Classes="icon"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.ChevronLeft}"/>
                     </Button>
                     <Button Grid.Column="3"
                             Classes="ghost"
                             Padding="7,3"
                             Command="{Binding NextReaderMatchCommand}"
-                            ToolTip.Tip="Next match (Enter)">
-                        <TextBlock Text="\u2193" FontSize="12"/>
+                            ToolTip.Tip="Next match (Enter)"
+                            AutomationProperties.Name="Next match">
+                        <TextBlock Classes="icon"
+                                   FontSize="16"
+                                   Text="{x:Static controls:Symbols.ChevronRight}"/>
                     </Button>
                 </Grid>
 
@@ -292,7 +298,7 @@
                                                               NoteRequested="OnPageNoteRequested"/>
                                     </Border>
 
-                                    <TextBlock Text="Rendering page\u2026"
+                                    <TextBlock Text="Rendering page…"
                                                Classes="meta"
                                                FontSize="10.5"
                                                IsVisible="{Binding IsRendering}"/>

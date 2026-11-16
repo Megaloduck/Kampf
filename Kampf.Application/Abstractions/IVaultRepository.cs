@@ -32,7 +32,12 @@ public interface IVaultRepository
 
     // Links / graph edges
     Task<IReadOnlyList<Link>> ListLinksAsync(CancellationToken ct = default);
-    Task AddLinkAsync(Link link, CancellationToken ct = default);
+    /// <summary>
+    /// Inserts a graph edge. Returns <c>false</c> when an identical edge (same
+    /// source, target and kind) was already stored, so a caller can tell whether
+    /// the graph actually changed.
+    /// </summary>
+    Task<bool> AddLinkAsync(Link link, CancellationToken ct = default);
     Task DeleteLinkAsync(string linkId, CancellationToken ct = default);
 
     /// <summary>Replaces the wiki-derived outgoing edges of a note (idempotent).</summary>

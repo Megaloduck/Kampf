@@ -33,7 +33,9 @@ public sealed partial class PdfPigExtractor : IPdfExtractor
             string text;
             try
             {
-                text = document.GetPage(number).Text ?? string.Empty;
+                // Reading order, line breaks, hyphenation and ligatures come from
+                // the shared assembler the reader also draws its word boxes with.
+                text = PdfPageTextBuilder.Build(document.GetPage(number)).Text;
             }
             catch (Exception)
             {
@@ -41,7 +43,7 @@ public sealed partial class PdfPigExtractor : IPdfExtractor
                 text = string.Empty;
             }
 
-            pages.Add(new PdfPageText(number, NormalizeWhitespace(text)));
+            pages.Add(new PdfPageText(number, text));
         }
 
         var xmp = ReadXmp(document);
@@ -203,17 +205,6 @@ public sealed partial class PdfPigExtractor : IPdfExtractor
     }
 
     /// <summary>Collapses the ragged line breaks PDF extraction produces.</summary>
-    private static string NormalizeWhitespace(string text)
-    {
-        var lines = text
-            .Replace("\r\n", "\n")
-            .Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0);
-
-        return string.Join('\n', lines);
-    }
-
     private static int? ParseYear(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

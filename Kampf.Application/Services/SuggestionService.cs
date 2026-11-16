@@ -5,7 +5,22 @@ using Kampf.Domain.ValueObjects;
 
 namespace Kampf.Application.Services;
 
-public sealed record SuggestionDecision(Suggestion Suggestion, string? CreatedNoteId);
+public sealed record SuggestionDecision(Suggestion Suggestion, string? CreatedNoteId)
+{
+    /// <summary>
+    /// True when the edge the suggestion proposed was already in the graph: the
+    /// decision is recorded, but accepting it changed nothing.
+    /// </summary>
+    public bool AlreadyApplied { get; init; }
+
+    /// <summary>
+    /// Why the suggestion could not be applied. When set, the suggestion has been
+    /// closed as stale (Rejected) and nothing was written to the graph.
+    /// </summary>
+    public string? StaleReason { get; init; }
+
+    public bool IsStale => StaleReason is not null;
+}
 
 /// <summary>
 /// The approval gate. Nothing here mutates the graph until the user accepts a
@@ -31,26 +46,62 @@ public sealed class SuggestionService
         var suggestion = pending.FirstOrDefault(s => s.Id == suggestionId)
             ?? throw new InvalidOperationException("Suggestion is no longer pending.");
 
-        string? createdNoteId = null;
         var detail = suggestion.Title;
 
-        if (accept)
-            createdNoteId = await ApplyAsync(suggestion, ct);
-
-        if (accept)
-            suggestion.Accept();
-        else
+        if (!accept)
+        {
             suggestion.Reject();
+            await _repo.SaveSuggestionAsync(suggestion, ct);
+            await _repo.AppendAuditAsync(
+                AuditEntry.Create("suggestion.rejected", detail),
+                ct);
 
+            return new SuggestionDecision(suggestion, null);
+        }
+
+        var outcome = await ApplyAsync(suggestion, ct);
+
+        if (outcome.StaleReason is not null)
+        {
+            // The vault moved after the proposal was made (a note it points at was
+            // deleted). Applying it would write a dangling edge, so close it honestly
+            // instead of recording an accept that changed nothing.
+            suggestion.Reject();
+            await _repo.SaveSuggestionAsync(suggestion, ct);
+            await _repo.AppendAuditAsync(
+                AuditEntry.Create("suggestion.stale", $"{detail} \u2014 {outcome.StaleReason}"),
+                ct);
+
+            return new SuggestionDecision(suggestion, null) { StaleReason = outcome.StaleReason };
+        }
+
+        suggestion.Accept();
         await _repo.SaveSuggestionAsync(suggestion, ct);
         await _repo.AppendAuditAsync(
-            AuditEntry.Create(accept ? "suggestion.accepted" : "suggestion.rejected", detail),
+            AuditEntry.Create(
+                "suggestion.accepted",
+                outcome.AlreadyApplied ? $"{detail} \u2014 edge already present, graph unchanged" : detail),
             ct);
 
-        return new SuggestionDecision(suggestion, createdNoteId);
+        return new SuggestionDecision(suggestion, outcome.CreatedNoteId)
+        {
+            AlreadyApplied = outcome.AlreadyApplied,
+        };
     }
 
-    private async Task<string?> ApplyAsync(Suggestion suggestion, CancellationToken ct)
+    /// <summary>
+    /// What one accept did: the note it created (if any), whether the graph was
+    /// already in the proposed state, or why it could not be applied at all.
+    /// </summary>
+    private readonly record struct ApplyOutcome(string? CreatedNoteId, bool AlreadyApplied, string? StaleReason)
+    {
+        public static ApplyOutcome Applied(string? createdNoteId = null, bool alreadyApplied = false) =>
+            new(createdNoteId, alreadyApplied, null);
+
+        public static ApplyOutcome Stale(string reason) => new(null, false, reason);
+    }
+
+    private async Task<ApplyOutcome> ApplyAsync(Suggestion suggestion, CancellationToken ct)
     {
         switch (suggestion.Kind)
         {
@@ -58,16 +109,21 @@ public sealed class SuggestionService
             {
                 var payload = SuggestionJson.Deserialize<CreateMissingNotePayload>(suggestion.PayloadJson);
                 if (payload is null)
-                    return null;
+                    return ApplyOutcome.Stale("its details could not be read");
+
+                // The note existed when the proposal was made; if it is gone the
+                // proposal has nothing left to resolve, and creating the target
+                // anyway would only add an orphan.
+                var source = await _repo.GetNoteAsync(payload.SourceNoteId, ct);
+                if (source is null)
+                    return ApplyOutcome.Stale($"note {payload.SourceNoteId} no longer exists");
 
                 var created = await _notes.CreateAsync(payload.TargetTitle, string.Empty, ct);
 
                 // Re-sync the source note so the [[link]] becomes a real wiki edge.
-                var source = await _repo.GetNoteAsync(payload.SourceNoteId, ct);
-                if (source is not null)
-                    await _notes.SyncWikiLinksAsync(source, ct);
+                await _notes.SyncWikiLinksAsync(source, ct);
 
-                return created.Id;
+                return ApplyOutcome.Applied(created.Id);
             }
 
             case SuggestionKind.LinkNotes:
@@ -75,32 +131,49 @@ public sealed class SuggestionService
             {
                 var payload = SuggestionJson.Deserialize<LinkNotesPayload>(suggestion.PayloadJson);
                 if (payload is null)
-                    return null;
+                    return ApplyOutcome.Stale("its details could not be read");
 
-                await _repo.AddLinkAsync(
+                // Both ends must still exist. The links table has no foreign key, so
+                // an unchecked accept is exactly how a dangling edge gets written.
+                var source = await _repo.GetNoteAsync(payload.SourceNoteId, ct);
+                if (source is null)
+                    return ApplyOutcome.Stale($"note {payload.SourceNoteId} no longer exists");
+
+                var target = await _repo.GetNoteAsync(payload.TargetNoteId, ct);
+                if (target is null)
+                    return ApplyOutcome.Stale($"note {payload.TargetNoteId} no longer exists");
+
+                var inserted = await _repo.AddLinkAsync(
                     Link.Create(payload.SourceNoteId, payload.TargetNoteId, EdgeKind.AcceptedSuggestion, payload.Reason),
                     ct);
-                return null;
+
+                // An identical edge is absorbed by UNIQUE(source_id, target_id, kind);
+                // report that rather than claiming the graph changed.
+                return ApplyOutcome.Applied(alreadyApplied: !inserted);
             }
 
             case SuggestionKind.ApplyTag:
             {
                 var payload = SuggestionJson.Deserialize<ApplyTagPayload>(suggestion.PayloadJson);
                 if (payload is null)
-                    return null;
+                    return ApplyOutcome.Stale("its details could not be read");
 
                 var note = await _repo.GetNoteAsync(payload.NoteId, ct);
                 if (note is null)
-                    return null;
+                    return ApplyOutcome.Stale($"note {payload.NoteId} no longer exists");
 
                 var existing = note.Tags.Select(t => t.Name).ToList();
+                if (existing.Any(t => string.Equals(t, payload.TagName, StringComparison.OrdinalIgnoreCase)))
+                    return ApplyOutcome.Applied(alreadyApplied: true);
+
                 existing.Add(payload.TagName);
                 await _notes.SetTagsAsync(note, existing, ct);
-                return null;
+
+                return ApplyOutcome.Applied();
             }
 
             default:
-                return null;
+                return ApplyOutcome.Stale("its kind is not supported");
         }
     }
 
@@ -111,12 +184,17 @@ public sealed class SuggestionService
         string reason,
         CancellationToken ct = default)
     {
-        var pending = await _repo.ListSuggestionsAsync(SuggestionStatus.Pending, ct);
-        var payload = new LinkNotesPayload(sourceNoteId, targetNoteId, reason);
-        var json = SuggestionJson.Serialize(payload);
+        // Duplicates are judged on the PAIR, never on the serialized payload: the
+        // same two notes with different reason text, or proposed in the other
+        // direction, are the same proposal.
+        var pair = SuggestionKeys.Pair(sourceNoteId, targetNoteId);
 
+        var pending = await _repo.ListSuggestionsAsync(SuggestionStatus.Pending, ct);
         var duplicate = pending.Any(s =>
-            s.Kind == SuggestionKind.LinkNotes && string.Equals(s.PayloadJson, json, StringComparison.Ordinal));
+            (s.Kind is SuggestionKind.LinkNotes or SuggestionKind.ConnectDots) &&
+            SuggestionJson.Deserialize<LinkNotesPayload>(s.PayloadJson) is { } existing &&
+            SuggestionKeys.Pair(existing.SourceNoteId, existing.TargetNoteId).Equals(pair));
+
         if (duplicate)
             throw new InvalidOperationException("That link suggestion is already queued.");
 
@@ -124,7 +202,11 @@ public sealed class SuggestionService
         var target = await _repo.GetNoteAsync(targetNoteId, ct);
         var title = $"Link \u201c{source?.Title ?? sourceNoteId}\u201d \u2192 \u201c{target?.Title ?? targetNoteId}\u201d";
 
-        var suggestion = Suggestion.Create(SuggestionKind.LinkNotes, title, json);
+        var suggestion = Suggestion.Create(
+            SuggestionKind.LinkNotes,
+            title,
+            SuggestionJson.Serialize(new LinkNotesPayload(sourceNoteId, targetNoteId, reason)));
+
         await _repo.SaveSuggestionAsync(suggestion, ct);
         return suggestion;
     }

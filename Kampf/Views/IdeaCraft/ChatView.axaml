@@ -172,7 +172,7 @@
                         CornerRadius="9,9,9,2"
                         Padding="14,11">
                     <StackPanel Spacing="9">
-                        <TextBlock Text="Idea-Craft is writing\u2026"
+                        <TextBlock Text="Idea-Craft is writing…"
                                    Classes="meta"
                                    FontSize="10"
                                    IsVisible="{Binding !HasLiveAnswer}"/>

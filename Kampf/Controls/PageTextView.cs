@@ -29,8 +29,8 @@ public sealed class PageTextView : SelectableTextBlock
 
     private static readonly IBrush NoteBrush = new SolidColorBrush(Color.FromArgb(96, 250, 204, 21));
     private static readonly IBrush CitationBrush = new SolidColorBrush(Color.FromArgb(104, 96, 165, 250));
-    private static readonly IBrush MatchBrush = new SolidColorBrush(Color.FromArgb(104, 74, 222, 128));
-    private static readonly IBrush ActiveMatchBrush = new SolidColorBrush(Color.FromArgb(168, 251, 146, 60));
+    private static readonly IBrush MatchBrush = new SolidColorBrush(Color.FromArgb(140, 74, 222, 128));
+    private static readonly IBrush ActiveMatchBrush = new SolidColorBrush(Color.FromArgb(200, 251, 146, 60));
 
     public string? PageText
     {

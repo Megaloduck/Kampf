@@ -17,6 +17,7 @@ public sealed class AuditRowViewModel
         "highlight.captured" => "Highlight captured",
         "suggestion.accepted" => "Suggestion accepted",
         "suggestion.rejected" => "Suggestion rejected",
+        "suggestion.stale" => "Suggestion dropped",
         _ => Entry.Action,
     };
 
