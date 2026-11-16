@@ -67,54 +67,7 @@
                                Margin="0,0,8,0"
                                IsVisible="{Binding IsBusy}"/>
 
-                    <Button x:Name="UndoButton"
-                            Classes="ghost iconButton"
-                            Click="OnUndoClick"
-                            ToolTip.Tip="Undo (Ctrl+Z)">
-                        <TextBlock Classes="icon"
-                                   FontSize="18"
-                                   Text="{x:Static controls:Symbols.Undo}"/>
-                    </Button>
-                    <Button x:Name="RedoButton"
-                            Classes="ghost iconButton"
-                            Click="OnRedoClick"
-                            ToolTip.Tip="Redo (Ctrl+Y)">
-                        <TextBlock Classes="icon"
-                                   FontSize="18"
-                                   Text="{x:Static controls:Symbols.Redo}"/>
-                    </Button>
-
-                    <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
-
-                    <Button Classes="ghost iconButton"
-                            Command="{Binding ToggleThemeCommand}"
-                            ToolTip.Tip="{Binding ThemeButtonLabel}">
-                        <Panel>
-                            <TextBlock Classes="icon"
-                                       FontSize="18"
-                                       Text="{x:Static controls:Symbols.LightMode}"
-                                       IsVisible="{Binding IsDarkTheme}"/>
-                            <TextBlock Classes="icon"
-                                       FontSize="18"
-                                       Text="{x:Static controls:Symbols.DarkMode}"
-                                       IsVisible="{Binding !IsDarkTheme}"/>
-                        </Panel>
-                    </Button>
-                    <Button Classes="ghost iconButton"
-                            Command="{Binding NewNoteCommand}"
-                            ToolTip.Tip="New note (Ctrl+N)">
-                        <TextBlock Classes="icon"
-                                   FontSize="18"
-                                   Text="{x:Static controls:Symbols.NoteAdd}"/>
-                    </Button>
-                    <Button Classes="primary iconButton"
-                            Command="{Binding ImportPdfCommand}"
-                            ToolTip.Tip="Import a PDF into the vault (Ctrl+O)">
-                        <TextBlock Classes="icon"
-                                   FontSize="17"
-                                   Text="{x:Static controls:Symbols.UploadFile}"
-                                   Foreground="{DynamicResource OnAccentBrush}"/>
-                    </Button>
+                   
 
                     <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
 
@@ -136,6 +89,25 @@
                                    FontSize="18"
                                    Text="{x:Static controls:Symbols.RightPanelClose}"/>
                     </Button>
+
+                    <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
+                    
+                    <Button Classes="ghost iconButton"
+                            Command="{Binding ToggleThemeCommand}"
+                            ToolTip.Tip="{Binding ThemeButtonLabel}">
+                        <Panel>
+                            <TextBlock Classes="icon"
+                                       FontSize="18"
+                                       Text="{x:Static controls:Symbols.LightMode}"
+                                       IsVisible="{Binding IsDarkTheme}"/>
+                            <TextBlock Classes="icon"
+                                       FontSize="18"
+                                       Text="{x:Static controls:Symbols.DarkMode}"
+                                       IsVisible="{Binding !IsDarkTheme}"/>
+                        </Panel>
+                    </Button>
+                    
+                    <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
 
                     <!-- Minimize / maximize / close, in the header's top-right
                          corner: the window is drawn without system chrome. -->
@@ -202,49 +174,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- Extensions: nothing ships with this build. -->
-            <Border IsVisible="{Binding IsExtensionsView}" Padding="40">
-                <StackPanel VerticalAlignment="Center"
-                            HorizontalAlignment="Center"
-                            Spacing="10"
-                            MaxWidth="430">
-                    <TextBlock Classes="icon"
-                               FontSize="36"
-                               HorizontalAlignment="Center"
-                               Text="{x:Static controls:Symbols.Extension}"
-                               Foreground="{DynamicResource FaintBrush}"/>
-                    <TextBlock Text="No extensions installed"
-                               FontSize="16"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock Text="This build has no extension system: everything Kampf does runs from the vault itself, with no plugins to install or trust."
-                               Classes="muted"
-                               FontSize="12"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Trash bin: deletion is permanent, so this stays empty by design. -->
-            <Border IsVisible="{Binding IsTrashView}" Padding="40">
-                <StackPanel VerticalAlignment="Center"
-                            HorizontalAlignment="Center"
-                            Spacing="10"
-                            MaxWidth="430">
-                    <TextBlock Classes="icon"
-                               FontSize="36"
-                               HorizontalAlignment="Center"
-                               Text="{x:Static controls:Symbols.Delete}"
-                               Foreground="{DynamicResource FaintBrush}"/>
-                    <TextBlock Text="The trash bin is empty"
-                               FontSize="16"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock Text="Deleting a note or a paper asks for a second click and then removes it from the vault for good, so nothing is kept here."
-                               Classes="muted"
-                               FontSize="12"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
+            <views:ExtensionView/>
+            <views:TrashView/>
 
             <views:NoteView x:Name="NoteEditor"/>
             <views:ReaderView/>

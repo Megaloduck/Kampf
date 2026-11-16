@@ -352,4 +352,15 @@
     <Style Selector="GridSplitter:pointerover">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
     </Style>
+
+    <!-- Keyboard focus ring and a pressed state for the rail: the rail is
+         icon-only, so focus has to be visible for keyboard users. -->
+    <Style Selector="Button.rail:focus /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.rail:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentDarkBrush}"/>
+    </Style>
 </Styles>

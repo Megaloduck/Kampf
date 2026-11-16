@@ -31,6 +31,7 @@ public sealed class FakeVaultRepository : IVaultRepository
         }
 
         return Task.FromResult<IReadOnlyList<Note>>(Notes.Values
+            .Where(n => n.DeletedAt is null)
             .OrderByDescending(n => n.UpdatedAt)
             .ToList());
     }
@@ -63,7 +64,26 @@ public sealed class FakeVaultRepository : IVaultRepository
     }
 
     public Task<IReadOnlyList<Note>> ListNotesForDocumentAsync(string documentId, CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<Note>>(Notes.Values.Where(n => n.SourceDocumentId == documentId).ToList());
+        Task.FromResult<IReadOnlyList<Note>>(Notes.Values
+            .Where(n => n.SourceDocumentId == documentId && n.DeletedAt is null)
+            .ToList());
+
+    public Task TrashNoteAsync(string id, CancellationToken ct = default)
+    {
+        if (Notes.TryGetValue(id, out var note))
+            note.DeletedAt = DateTimeOffset.Now;
+        return Task.CompletedTask;
+    }
+
+    public Task RestoreNoteAsync(string id, CancellationToken ct = default)
+    {
+        if (Notes.TryGetValue(id, out var note))
+            note.DeletedAt = null;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<Note>> ListTrashedNotesAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Note>>(Notes.Values.Where(n => n.DeletedAt is not null).ToList());
 
     public Task<IReadOnlyList<Tag>> ListTagsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Tag>>(Tags.ToList());
@@ -111,7 +131,24 @@ public sealed class FakeVaultRepository : IVaultRepository
     }
 
     public Task<IReadOnlyList<PdfDocument>> ListDocumentsAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<PdfDocument>>(Documents.Values.ToList());
+        Task.FromResult<IReadOnlyList<PdfDocument>>(Documents.Values.Where(d => d.DeletedAt is null).ToList());
+
+    public Task TrashDocumentAsync(string id, CancellationToken ct = default)
+    {
+        if (Documents.TryGetValue(id, out var document))
+            document.DeletedAt = DateTimeOffset.Now;
+        return Task.CompletedTask;
+    }
+
+    public Task RestoreDocumentAsync(string id, CancellationToken ct = default)
+    {
+        if (Documents.TryGetValue(id, out var document))
+            document.DeletedAt = null;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<PdfDocument>> ListTrashedDocumentsAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PdfDocument>>(Documents.Values.Where(d => d.DeletedAt is not null).ToList());
 
     public Task<PdfDocument?> GetDocumentAsync(string id, CancellationToken ct = default) =>
         Task.FromResult(Documents.GetValueOrDefault(id));

@@ -1,0 +1,121 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="30"
+             x:Class="Kampf.Views.NavigatorFolderItem"
+             x:DataType="vm:NavigatorFolderViewModel">
+    <!-- One folder header: chevron, folder glyph (open or closed), name, count, and
+         the button that opens the folder's menu — a new note in this folder, a
+         paper imported into the vault, or a new name for the folder itself. The
+         name box sits over the header while renaming, so the row keeps its shape.
+         The rows underneath stay in NavigatorView, so the nesting is written once. -->
+    <Grid ColumnDefinitions="*,Auto">
+        <Button Classes="folderRow"
+                Command="{Binding ToggleCommand}"
+                AutomationProperties.Name="{Binding Title}"
+                ToolTip.Tip="{Binding Title}">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <Panel Width="16" Height="16" VerticalAlignment="Center">
+                    <TextBlock Classes="icon"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.ExpandMore}"
+                               Foreground="{DynamicResource FaintBrush}"
+                               IsVisible="{Binding IsExpanded}"/>
+                    <TextBlock Classes="icon"
+                               FontSize="16"
+                               Text="{x:Static controls:Symbols.ChevronRight}"
+                               Foreground="{DynamicResource FaintBrush}"
+                               IsVisible="{Binding IsCollapsed}"/>
+                </Panel>
+
+                <TextBlock Grid.Column="1"
+                           Classes="icon"
+                           FontSize="15"
+                           Margin="4,0,6,0"
+                           Text="{Binding Icon}"
+                           Foreground="{DynamicResource MutedBrush}"/>
+
+                <TextBlock Grid.Column="2"
+                           Text="{Binding Title}"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding !IsRenaming}"/>
+
+                <TextBlock Grid.Column="3"
+                           Text="{Binding CountLabel}"
+                           Classes="meta"
+                           FontSize="10.5"
+                           Margin="6,0,2,0"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Button>
+
+        <!-- Renaming: the name is edited where it is read, Enter keeps it and
+             Escape puts the old one back. -->
+        <TextBox x:Name="RenameBox"
+                 Grid.ColumnSpan="2"
+                 IsVisible="{Binding IsRenaming}"
+                 Text="{Binding RenameName, Mode=TwoWay}"
+                 FontSize="12"
+                 Padding="6,3"
+                 Margin="0"
+                 VerticalAlignment="Center"
+                 AutomationProperties.Name="Folder name"
+                 KeyDown="OnRenameKeyDown"
+                 LostFocus="OnRenameLostFocus"/>
+
+        <Button Grid.Column="1"
+                Classes="addRowNote"
+                AutomationProperties.Name="Folder actions"
+                ToolTip.Tip="Folder actions">
+            <Button.Flyout>
+                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                    <MenuItem Header="New note"
+                              IsEnabled="{Binding CanAddNote}"
+                              Command="{Binding AddNoteCommand}">
+                        <MenuItem.Icon>
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.NoteAdd}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="Import paper…"
+                              Command="{Binding ImportPapersCommand}">
+                        <MenuItem.Icon>
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.UploadFile}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="Rename folder…"
+                              IsEnabled="{Binding CanRename}"
+                              Command="{Binding BeginRenameCommand}">
+                        <MenuItem.Icon>
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Text="{x:Static controls:Symbols.EditNote}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="Delete folder…"
+                              IsEnabled="{Binding CanDeleteFolder}"
+                              Command="{Binding DeleteFolderCommand}">
+                        <MenuItem.Icon>
+                            <TextBlock Classes="icon"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource DangerBrush}"
+                                       Text="{x:Static controls:Symbols.Delete}"/>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                </MenuFlyout>
+            </Button.Flyout>
+            <TextBlock Classes="icon"
+                       FontSize="15"
+                       Text="{x:Static controls:Symbols.Add}"
+                       Foreground="{DynamicResource MutedBrush}"/>
+        </Button>
+    </Grid>
+</UserControl>

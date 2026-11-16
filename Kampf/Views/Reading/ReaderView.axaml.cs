@@ -197,15 +197,19 @@ public partial class ReaderView : UserControl
 
     private static string ReadSelection(SelectableTextBlock? textBlock)
     {
-        if (textBlock?.Text is null)
+        // The text surface renders its marks as inline runs, so the text to slice
+        // comes from the page itself rather than from TextBlock.Text.
+        var source = textBlock is PageTextView pageText ? pageText.PageText : textBlock?.Text;
+
+        if (textBlock is null || source is null)
             return string.Empty;
 
         var start = Math.Min(textBlock.SelectionStart, textBlock.SelectionEnd);
         var end = Math.Max(textBlock.SelectionStart, textBlock.SelectionEnd);
 
-        if (end <= start || end > textBlock.Text.Length)
+        if (end <= start || end > source.Length)
             return string.Empty;
 
-        return textBlock.Text.Substring(start, end - start).Trim();
+        return source.Substring(start, end - start).Trim();
     }
 }

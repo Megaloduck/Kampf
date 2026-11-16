@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             x:Class="Kampf.Views.ExtensionView"
+             x:DataType="vm:MainViewModel">
+
+    <!-- Extensions: nothing ships with this build. -->
+    <Border IsVisible="{Binding IsExtensionsView}" Padding="40">
+        <StackPanel VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="10"
+                    MaxWidth="430">
+            <TextBlock Classes="icon"
+                       FontSize="36"
+                       HorizontalAlignment="Center"
+                       Text="{x:Static controls:Symbols.Extension}"
+                       Foreground="{DynamicResource FaintBrush}"/>
+            <TextBlock Text="No extensions installed"
+                       FontSize="16"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="This build has no extension system: everything Kampf does runs from the vault itself, with no plugins to install or trust."
+                       Classes="muted"
+                       FontSize="12"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </Border>
+</UserControl>

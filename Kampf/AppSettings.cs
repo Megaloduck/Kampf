@@ -21,7 +21,8 @@ public sealed record AppSettings(
     int? X = null,
     int? Y = null,
     bool Maximized = false,
-    IReadOnlyDictionary<string, string>? Shortcuts = null)
+    IReadOnlyDictionary<string, string>? Shortcuts = null,
+    IReadOnlyList<string>? Folders = null)
 {
     public const string FileName = "app-settings.json";
 

@@ -98,7 +98,7 @@
                             <TextBlock Text="Delete paper"/>
                         </StackPanel>
                     </Button>
-                    <TextBlock Text="Click twice to confirm"
+                    <TextBlock Text="Click twice to move it to the trash"
                                Classes="meta"
                                FontSize="10.5"
                                Foreground="{DynamicResource WarnBrush}"
@@ -304,13 +304,16 @@
                                                TextWrapping="Wrap"
                                                IsVisible="{Binding HasRenderError}"/>
 
-                                    <SelectableTextBlock Text="{Binding Text}"
-                                                         TextWrapping="Wrap"
-                                                         FontSize="13"
-                                                         LineHeight="21"
-                                                         IsVisible="{Binding ShowTextBlock}"
-                                                         Foreground="{DynamicResource TextBrush}"
-                                                         PointerReleased="OnPageTextPointerReleased"/>
+                                    <!-- Text surface: same marks as the rendered page, so a
+                                         search hit is visible before the page renders and in Text mode. -->
+                                    <controls:PageTextView PageText="{Binding Text}"
+                                                           Spans="{Binding Spans}"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="13"
+                                                           LineHeight="21"
+                                                           IsVisible="{Binding ShowTextBlock}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           PointerReleased="OnPageTextPointerReleased"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

@@ -140,8 +140,6 @@ public partial class MainView : UserControl
         // The buttons live in the window header, so they only mean something
         // while a note is loaded into the editor.
         var hasNote = _bound?.HasActiveNote == true;
-        UndoButton.IsEnabled = hasNote && NoteEditor.CanUndo;
-        RedoButton.IsEnabled = hasNote && NoteEditor.CanRedo;
     }
 
     // ---------------------------------------------------- drag and drop import

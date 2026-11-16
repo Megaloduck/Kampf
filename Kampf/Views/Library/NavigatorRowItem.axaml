@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Kampf.ViewModels"
+             xmlns:controls="using:Kampf.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="230" d:DesignHeight="26"
+             x:Class="Kampf.Views.NavigatorRowItem"
+             x:DataType="vm:NavigatorRowViewModel">
+    <!-- One leaf row: a paper (Description glyph) or a note (StickyNote glyph), so
+         the two read apart without reading the label. The whole row is the click
+         target, so selection and its highlight live on the button. -->
+    <Button Classes="treeRow"
+            Classes.active="{Binding IsSelected}"
+            Command="{Binding SelectCommand}"
+            AutomationProperties.Name="{Binding Title}"
+            ToolTip.Tip="{Binding ToolTip}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock Classes="icon"
+                       FontSize="13"
+                       Margin="0,0,7,0"
+                       Text="{Binding Icon}"
+                       Foreground="{DynamicResource FaintBrush}"/>
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding Title}"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Detail}"
+                       IsVisible="{Binding HasDetail}"
+                       Classes="meta"
+                       FontSize="10"
+                       Margin="8,0,0,0"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Button>
+</UserControl>

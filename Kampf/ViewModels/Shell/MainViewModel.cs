@@ -123,7 +123,9 @@ public partial class MainViewModel : ViewModelBase
         _publishService = new PublishService(vault.Repository);
 
         // A saved theme is applied before the first frame the window draws.
-        IsDarkTheme = AppSettings.Load(vault.RootPath).IsDarkTheme;
+        var settings = AppSettings.Load(vault.RootPath);
+        IsDarkTheme = settings.IsDarkTheme;
+        _folders = settings.Folders?.ToList() ?? new List<string>();
 
         // Show whatever Settings saved last time, so the fields match the model
         // that is actually answering.
@@ -228,6 +230,10 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Leaving Settings abandons a half-finished shortcut change.</summary>
     partial void OnViewChanged(VaultView value)
     {
+        // The bin is a live list: entering it always shows what is in it now.
+        if (value == VaultView.Trash)
+            _ = RefreshTrashAsync();
+
         if (value == VaultView.Settings || CapturingShortcut is null)
             return;
 
@@ -933,6 +939,7 @@ public partial class MainViewModel : ViewModelBase
 
             RebuildNoteAndDocumentLists();
             await ReloadReviewAsync();
+            await RefreshTrashAsync();
             RebuildTagFilters();
             RebuildYearFilters();
             RebuildAuthorFilters();
@@ -984,7 +991,65 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Which folders the navigator has open, so a refresh does not close them.</summary>
     private readonly Dictionary<string, bool> _folderExpansion = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Folders added by the researcher. A folder is a tag, so one with no note in
+    /// it yet has nothing in the database to remember it; the name is kept beside
+    /// the vault, and the first note created inside it carries the tag.
+    /// </summary>
+    private readonly List<string> _folders;
+
+    /// <summary>The name typed in the navigator's new-folder box.</summary>
+    [ObservableProperty] private string _newFolderName = string.Empty;
+
     public ObservableCollection<NavigatorFolderViewModel> NavigatorFolders { get; } = new();
+
+    /// <summary>
+    /// The navigator's folder button: names a folder, which is also the tag its
+    /// notes carry — that tag is what colours them in the graph.
+    /// </summary>
+    [RelayCommand]
+    private void AddFolder()
+    {
+        var name = NewFolderName.Trim();
+
+        if (name.Length == 0)
+        {
+            StatusMessage = "Name the folder first.";
+            return;
+        }
+
+        var taken = _folders.Any(f => f.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    || name.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase)
+                    || name.Equals(PapersFolder, StringComparison.OrdinalIgnoreCase)
+                    || _allNotes.SelectMany(n => n.Tags)
+                        .Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (taken)
+        {
+            StatusMessage = $"There is already a folder called \u201c{name}\u201d.";
+            return;
+        }
+
+        _folders.Add(name);
+        _folderExpansion[name] = true;
+        NewFolderName = string.Empty;
+        SaveFolders();
+        RebuildNavigator();
+        UpdateCounts();
+        StatusMessage = $"Folder \u201c{name}\u201d added \u2014 new notes in it carry that tag.";
+    }
+
+    private void SaveFolders()
+    {
+        try
+        {
+            (AppSettings.Load(_vault.RootPath) with { Folders = _folders.ToList() }).Save(_vault.RootPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusMessage = "The folder exists for this session but could not be saved: " + ex.Message;
+        }
+    }
 
     /// <summary>
     /// The navigator groups the notes it is showing into folders by their first
@@ -998,24 +1063,47 @@ public partial class MainViewModel : ViewModelBase
 
         NavigatorFolders.Clear();
 
-        foreach (var group in Notes
-                     .GroupBy(n => n.Note.Tags.Count > 0 ? n.Note.Tags[0].Name : UnfiledFolder)
-                     .OrderBy(g => g.Key.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
-                     .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        // Every note sits in the folder named by its first tag; unfiled notes have
+        // their own folder, and a folder added before any note carried its tag
+        // stays in the list (empty) instead of vanishing on the next refresh.
+        var groups = Notes
+            .GroupBy(n => n.Note.Tags.Count > 0 ? n.Note.Tags[0].Name : UnfiledFolder)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var titles = new List<string>(_folders);
+        foreach (var title in groups.Keys)
         {
-            var rows = group.Select(note => new NavigatorRowViewModel(
+            if (!titles.Contains(title, StringComparer.OrdinalIgnoreCase))
+                titles.Add(title);
+        }
+
+        foreach (var title in titles
+                     .OrderBy(t => t.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                     .ThenBy(t => t, StringComparer.OrdinalIgnoreCase))
+        {
+            var notes = groups.GetValueOrDefault(title) ?? new List<NoteRowViewModel>();
+
+            var rows = notes.Select(note => new NavigatorRowViewModel(
                 note.Id,
                 note.Title,
                 note.ProvenanceLabel,
                 note.Preview,
                 SelectNoteFromNavigator));
 
+            // Unfiled holds notes with no tag: no name to change, nothing to delete.
+            var isTagFolder = !title.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase);
+            Func<string, string, bool>? rename = isTagFolder ? RenameFolder : null;
+            Action<string>? deleteFolder = isTagFolder ? DeleteFolder : null;
+
             NavigatorFolders.Add(new NavigatorFolderViewModel(
-                group.Key,
+                title,
                 rows,
-                group.Count().ToString(),
+                notes.Count.ToString(),
                 AddNoteToFolder,
-                _folderExpansion.TryGetValue(group.Key, out var expanded) ? expanded : true));
+                ImportPdfCommand,
+                _folderExpansion.TryGetValue(title, out var expanded) ? expanded : true,
+                rename,
+                deleteFolder));
         }
 
         if (Documents.Count > 0)
@@ -1025,14 +1113,18 @@ public partial class MainViewModel : ViewModelBase
                 document.Title,
                 document.MatchPage is { } page ? $"p. {page}" : string.Empty,
                 document.MetaLine,
-                SelectDocumentFromNavigator));
+                SelectDocumentFromNavigator,
+                isPaper: true));
 
             NavigatorFolders.Add(new NavigatorFolderViewModel(
                 PapersFolder,
                 rows,
                 Documents.Count.ToString(),
                 null,
-                _folderExpansion.TryGetValue(PapersFolder, out var expanded) ? expanded : true));
+                ImportPdfCommand,
+                _folderExpansion.TryGetValue(PapersFolder, out var expanded) ? expanded : true,
+                null,
+                null));
         }
 
         SyncNavigatorSelection();
@@ -1075,30 +1167,326 @@ public partial class MainViewModel : ViewModelBase
         View = VaultView.Reader;
     }
 
-    /// <summary>A folder's plus button: a new note that already carries the folder's tag.</summary>
+    /// <summary>A folder's add menu: a new note that already carries the folder's tag.</summary>
     private void AddNoteToFolder(string folder)
     {
-        if (folder is UnfiledFolder or PapersFolder)
+        if (folder.Equals(PapersFolder, StringComparison.OrdinalIgnoreCase))
             return;
 
-        _ = AddNoteToFolderAsync(folder);
+        // The unfiled folder holds notes that carry no tag at all.
+        var tag = folder.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase) ? null : folder;
+        _ = AddNoteToFolderAsync(tag);
     }
 
-    private async Task AddNoteToFolderAsync(string tag)
+    /// <summary>
+    /// Renames a folder by renaming its tag on every note that carries it, so the
+    /// rows stay where they are. The new name is checked against the other folders
+    /// first; a refused name leaves the folder's edit box open.
+    /// </summary>
+    private bool RenameFolder(string currentName, string newName)
+    {
+        if (newName.Length == 0)
+        {
+            StatusMessage = "Name the folder first.";
+            return false;
+        }
+
+        if (newName.Equals(currentName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var taken = _folders.Any(f => f.Equals(newName, StringComparison.OrdinalIgnoreCase))
+                    || newName.Equals(UnfiledFolder, StringComparison.OrdinalIgnoreCase)
+                    || newName.Equals(PapersFolder, StringComparison.OrdinalIgnoreCase)
+                    || _allNotes.SelectMany(n => n.Tags)
+                        .Any(t => t.Name.Equals(newName, StringComparison.OrdinalIgnoreCase));
+
+        if (taken)
+        {
+            StatusMessage = $"There is already a folder called \u201c{newName}\u201d.";
+            return false;
+        }
+
+        _ = RenameFolderAsync(currentName, newName);
+        return true;
+    }
+
+    private async Task RenameFolderAsync(string currentName, string newName)
+    {
+        try
+        {
+            // The folder is the tag, so the tag is what gets renamed — on every
+            // note that carries it, not only the ones filed under it.
+            foreach (var note in _allNotes.Where(n =>
+                         n.Tags.Any(t => t.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase))))
+            {
+                var tags = note.Tags
+                    .Select(t => t.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase)
+                        ? newName
+                        : t.Name)
+                    .ToList();
+
+                await _noteService.SetTagsAsync(note, tags);
+            }
+
+            var index = _folders.FindIndex(f => f.Equals(currentName, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+                _folders[index] = newName;
+            else
+                _folders.Add(newName);
+
+            if (_folderExpansion.Remove(currentName, out var expanded))
+                _folderExpansion[newName] = expanded;
+
+            SaveFolders();
+            await RefreshAsync();
+            UpdateCounts();
+            StatusMessage = $"Folder \u201c{currentName}\u201d renamed to \u201c{newName}\u201d.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not rename folder: " + ex.Message;
+        }
+    }
+
+    private async Task AddNoteToFolderAsync(string? tag)
     {
         try
         {
             var note = await _noteService.CreateAsync("Untitled note");
-            await _noteService.SetTagsAsync(note, new[] { tag });
+            if (tag is not null)
+                await _noteService.SetTagsAsync(note, new[] { tag });
 
             await RefreshAsync();
             SelectNoteById(note.Id);
             View = VaultView.Editor;
-            StatusMessage = $"New note in {tag} \u2014 markdown supported, [[Title]] connects notes.";
+            StatusMessage = tag is null
+                ? "New note \u2014 markdown supported, [[Title]] connects notes."
+                : $"New note in {tag} \u2014 markdown supported, [[Title]] connects notes.";
         }
         catch (Exception ex)
         {
             StatusMessage = "Could not create note: " + ex.Message;
+        }
+    }
+
+    // ------------------------------------------------------------------ trash
+
+    /// <summary>What the Trash bin lists: notes first, newest deletion on top.</summary>
+    public ObservableCollection<TrashRowViewModel> TrashRows { get; } = new();
+
+    [ObservableProperty] private string _trashSummary = "The trash bin is empty.";
+    [ObservableProperty] private bool _hasTrash;
+    [ObservableProperty] private bool _confirmEmptyTrash;
+
+    /// <summary>The deleted rows themselves, kept so restore and purge act on them.</summary>
+    private readonly List<Note> _trashedNotes = new();
+    private readonly List<PdfDocument> _trashedDocuments = new();
+
+    private async Task RefreshTrashAsync()
+    {
+        try
+        {
+            var notes = await _vault.Repository.ListTrashedNotesAsync();
+            var documents = await _vault.Repository.ListTrashedDocumentsAsync();
+
+            _trashedNotes.Clear();
+            _trashedNotes.AddRange(notes);
+            _trashedDocuments.Clear();
+            _trashedDocuments.AddRange(documents);
+
+            var rows = notes
+                .Select(note => (
+                    At: note.DeletedAt ?? DateTimeOffset.MinValue,
+                    Row: new TrashRowViewModel(
+                        note.Id, note.Title, false, note.DeletedAt, RestoreFromTrash, DeleteFromTrashForever)))
+                .Concat(documents.Select(document => (
+                    At: document.DeletedAt ?? DateTimeOffset.MinValue,
+                    Row: new TrashRowViewModel(
+                        document.Id, document.Title, true, document.DeletedAt, RestoreFromTrash, DeleteFromTrashForever))))
+                .OrderByDescending(entry => entry.At)
+                .Select(entry => entry.Row)
+                .ToList();
+
+            TrashRows.Clear();
+            foreach (var row in rows)
+                TrashRows.Add(row);
+
+            HasTrash = TrashRows.Count > 0;
+            ConfirmEmptyTrash = false;
+            TrashSummary = HasTrash
+                ? $"{notes.Count} note(s) and {documents.Count} paper(s) deleted. Restoring a note puts it back in its folder."
+                : "The trash bin is empty. Deleting a note or a paper moves it here first.";
+
+            UpdateCounts();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not read the trash: " + ex.Message;
+        }
+    }
+
+    private void RestoreFromTrash(TrashRowViewModel row) => _ = RestoreFromTrashAsync(row);
+
+    private async Task RestoreFromTrashAsync(TrashRowViewModel row)
+    {
+        try
+        {
+            if (row.IsPaper)
+            {
+                var document = _trashedDocuments.FirstOrDefault(d => d.Id == row.Id);
+                if (document is null)
+                    return;
+
+                await _importService.RestoreDocumentAsync(document);
+            }
+            else
+            {
+                var note = _trashedNotes.FirstOrDefault(n => n.Id == row.Id);
+                if (note is null)
+                    return;
+
+                await _noteService.RestoreAsync(note);
+            }
+
+            await RefreshAsync();
+            StatusMessage = $"\u201c{row.Title}\u201d is back in the vault.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not restore: " + ex.Message;
+        }
+    }
+
+    private void DeleteFromTrashForever(TrashRowViewModel row) => _ = DeleteFromTrashForeverAsync(row);
+
+    private async Task DeleteFromTrashForeverAsync(TrashRowViewModel row)
+    {
+        try
+        {
+            if (row.IsPaper)
+            {
+                var document = _trashedDocuments.FirstOrDefault(d => d.Id == row.Id);
+                if (document is null)
+                    return;
+
+                // The permanent path: the row, its pages, highlights and the PDF go.
+                await _importService.DeleteDocumentAsync(document);
+                _pageCache.Remove(document.Id);
+                _vault.PageRenderer.Forget(document.FilePath);
+            }
+            else
+            {
+                var note = _trashedNotes.FirstOrDefault(n => n.Id == row.Id);
+                if (note is null)
+                    return;
+
+                await _noteService.DeleteAsync(note.Id);
+            }
+
+            await RefreshAsync();
+            StatusMessage = $"\u201c{row.Title}\u201d was deleted for good.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not delete: " + ex.Message;
+        }
+    }
+
+    /// <summary>Empties the bin, asking once first: it is the only permanent delete left.</summary>
+    [RelayCommand]
+    private void EmptyTrash()
+    {
+        if (!HasTrash)
+        {
+            StatusMessage = "The trash bin is already empty.";
+            return;
+        }
+
+        if (!ConfirmEmptyTrash)
+        {
+            ConfirmEmptyTrash = true;
+            StatusMessage = $"Emptying the trash deletes {TrashRows.Count} item(s) for good. Click Empty trash again to confirm.";
+            return;
+        }
+
+        _ = EmptyTrashAsync();
+    }
+
+    private async Task EmptyTrashAsync()
+    {
+        try
+        {
+            var notes = _trashedNotes.ToList();
+            var documents = _trashedDocuments.ToList();
+
+            // Notes first, so a paper's page anchors are gone before its rows are.
+            foreach (var note in notes)
+                await _noteService.DeleteAsync(note.Id);
+
+            foreach (var document in documents)
+            {
+                await _importService.DeleteDocumentAsync(document);
+                _pageCache.Remove(document.Id);
+                _vault.PageRenderer.Forget(document.FilePath);
+            }
+
+            await RefreshAsync();
+            StatusMessage = $"Trash emptied \u2014 {notes.Count} note(s) and {documents.Count} paper(s) deleted.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not empty the trash: " + ex.Message;
+        }
+    }
+
+    // ------------------------------------------------------------ delete folder
+
+    /// <summary>
+    /// A folder's menu: every note filed under it goes to the trash, which takes
+    /// the folder with it. The notes keep their tags, so restoring one brings the
+    /// folder back.
+    /// </summary>
+    private void DeleteFolder(string title)
+    {
+        if (title.Equals(PapersFolder, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _ = DeleteFolderAsync(title);
+    }
+
+    private async Task DeleteFolderAsync(string title)
+    {
+        try
+        {
+            var notes = _allNotes
+                .Where(n => n.Tags.Any(t => t.Name.Equals(title, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            foreach (var note in notes)
+                await _noteService.TrashAsync(note);
+
+            _folders.RemoveAll(f => f.Equals(title, StringComparison.OrdinalIgnoreCase));
+            _folderExpansion.Remove(title);
+            SaveFolders();
+
+            if (_editingNoteId is not null && notes.Any(n => n.Id == _editingNoteId))
+            {
+                _editingNoteId = null;
+                _suppressSelection = true;
+                SelectedNote = null;
+                _suppressSelection = false;
+                IsDirty = false;
+                View = VaultView.Library;
+            }
+
+            await RefreshAsync();
+            StatusMessage = notes.Count == 0
+                ? $"Folder \u201c{title}\u201d removed."
+                : $"Folder \u201c{title}\u201d deleted \u2014 {notes.Count} note(s) moved to the trash.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not delete folder: " + ex.Message;
         }
     }
 
@@ -1299,12 +1687,13 @@ public partial class MainViewModel : ViewModelBase
 
     private void UpdateCounts()
     {
-        var folderCount = _allNotes
-            .Select(n => n.Tags.Count > 0 ? n.Tags[0].Name : UnfiledFolder)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
+        var folderNames = new HashSet<string>(_folders, StringComparer.OrdinalIgnoreCase);
+        foreach (var note in _allNotes)
+            folderNames.Add(note.Tags.Count > 0 ? note.Tags[0].Name : UnfiledFolder);
+
         var tagCount = _allNotes.SelectMany(n => n.Tags).Select(t => t.Name).Distinct().Count();
-        CountsSummary = $"{folderCount} folders \u00b7 {_allDocuments.Count} papers \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers \u00b7 {_allLinks.Count} links \u00b7 {tagCount} tags";
+        var trash = TrashRows.Count > 0 ? $" \u00b7 {TrashRows.Count} in trash" : string.Empty;
+        CountsSummary = $"{folderNames.Count} folders \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers \u00b7 {_allLinks.Count} links \u00b7 {tagCount} tags{trash}";
     }
 
     // ------------------------------------------------------------------ graph
@@ -1461,14 +1850,18 @@ public partial class MainViewModel : ViewModelBase
         if (!ConfirmDelete)
         {
             ConfirmDelete = true;
-            StatusMessage = "Click delete again to remove this note permanently.";
+            StatusMessage = "Click delete again to move this note to the trash.";
             return;
         }
 
         try
         {
             var id = _editingNoteId;
-            await _noteService.DeleteAsync(id);
+            var note = _allNotes.FirstOrDefault(n => n.Id == id);
+            if (note is null)
+                return;
+
+            await _noteService.TrashAsync(note);
 
             _editingNoteId = null;
             _suppressSelection = true;
@@ -1482,7 +1875,8 @@ public partial class MainViewModel : ViewModelBase
                 AnchoredNotes.Remove(anchored);
 
             await RefreshAsync();
-            StatusMessage = "Note deleted.";
+            View = VaultView.Library;
+            StatusMessage = $"\u201c{note.Title}\u201d is in the trash \u2014 restore it from the Trash bin.";
         }
         catch (Exception ex)
         {
@@ -1501,13 +1895,13 @@ public partial class MainViewModel : ViewModelBase
         if (!ConfirmDeleteDocument)
         {
             ConfirmDeleteDocument = true;
-            StatusMessage = "Deleting also removes the stored PDF and its highlights. Click delete again to confirm.";
+            StatusMessage = "Click delete again to move this paper to the trash. The stored PDF stays until you empty the bin.";
             return;
         }
 
         try
         {
-            await _importService.DeleteDocumentAsync(document);
+            await _importService.TrashDocumentAsync(document);
 
             _pageCache.Remove(document.Id);
             _vault.PageRenderer.Forget(document.FilePath);
@@ -1526,8 +1920,8 @@ public partial class MainViewModel : ViewModelBase
             _suppressSelection = false;
 
             await RefreshAsync();
-            View = VaultView.Graph;
-            StatusMessage = $"Deleted \u201c{document.Title}\u201d and its stored PDF.";
+            View = VaultView.Library;
+            StatusMessage = $"\u201c{document.Title}\u201d is in the trash \u2014 restore it from the Trash bin.";
         }
         catch (Exception ex)
         {
@@ -1995,10 +2389,21 @@ public partial class MainViewModel : ViewModelBase
     private readonly List<(int Page, int Start, int Length)> _readerMatches = new();
     private int _readerMatchIndex = -1;
 
-    partial void OnReaderSearchQueryChanged(string value) => RunReaderSearch(value);
+    /// <summary>
+    /// Set while a paper is opened from a search hit, so the first marked word is
+    /// the one that matched rather than the first hit in the paper.
+    /// </summary>
+    private int? _readerPreferredMatchPage;
 
-    /// <summary>Marks every hit on every page, then jumps to the first.</summary>
-    private void RunReaderSearch(string query)
+    partial void OnReaderSearchQueryChanged(string value)
+    {
+        var preferred = _readerPreferredMatchPage;
+        _readerPreferredMatchPage = null;
+        RunReaderSearch(value, preferred);
+    }
+
+    /// <summary>Marks every hit on every page, then jumps to the first (or the preferred page's).</summary>
+    private void RunReaderSearch(string query, int? preferredPage = null)
     {
         foreach (var page in Pages)
         {
@@ -2033,7 +2438,11 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        GoToMatch(0);
+        var first = preferredPage is { } wantedPage
+            ? _readerMatches.FindIndex(match => match.Page == wantedPage)
+            : 0;
+
+        GoToMatch(Math.Max(0, first));
     }
 
     [RelayCommand]
@@ -2388,6 +2797,24 @@ public partial class MainViewModel : ViewModelBase
             // Rendered pages replace the stored text as the visual surface, so
             // start with the page the reader is about to look at.
             StartRendering(document, pages, jump.Page);
+
+            // A paper opened from a search hit carries the query with it, so the
+            // words that matched are marked where they were found.
+            if (HasSearchResults && !string.IsNullOrWhiteSpace(SearchQuery) &&
+                SelectedDocument?.MatchPage is { } hitPage)
+            {
+                var query = SearchQuery.Trim();
+
+                if (string.Equals(ReaderSearchQuery, query, StringComparison.Ordinal))
+                {
+                    RunReaderSearch(query, hitPage);
+                }
+                else
+                {
+                    _readerPreferredMatchPage = hitPage;
+                    ReaderSearchQuery = query;
+                }
+            }
         }
         catch (Exception ex)
         {

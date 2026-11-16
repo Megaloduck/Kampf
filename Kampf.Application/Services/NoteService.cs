@@ -39,6 +39,19 @@ public sealed class NoteService
         await _repo.AppendAuditAsync(AuditEntry.Create("note.deleted", noteId), ct);
     }
 
+    /// <summary>Deleting a note puts it in the trash; only the trash bin deletes for good.</summary>
+    public async Task TrashAsync(Note note, CancellationToken ct = default)
+    {
+        await _repo.TrashNoteAsync(note.Id, ct);
+        await _repo.AppendAuditAsync(AuditEntry.Create("note.trashed", note.Title), ct);
+    }
+
+    public async Task RestoreAsync(Note note, CancellationToken ct = default)
+    {
+        await _repo.RestoreNoteAsync(note.Id, ct);
+        await _repo.AppendAuditAsync(AuditEntry.Create("note.restored", note.Title), ct);
+    }
+
     /// <summary>
     /// Rewrites the note's wiki edges to match its [[links]] and queues a
     /// review-queue suggestion for every link that has no note yet. Links are

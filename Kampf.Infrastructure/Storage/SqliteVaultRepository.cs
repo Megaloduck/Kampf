@@ -18,11 +18,21 @@ public sealed class SqliteVaultRepository : IVaultRepository
 {
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
-    /// <summary>Column order shared by every document query and <see cref="ReadDocument"/>.</summary>
-    private const string DocumentColumns =
+    /// <summary>
+    /// Everything a save writes. The trash marker is not part of it: saving a paper
+    /// never moves it in or out of the bin.
+    /// </summary>
+    private const string DocumentInsertColumns =
         "id, file_path, file_name, title, authors, year, doi, page_count, imported_at, " +
         "item_type, abstract, publication, volume, issue, page_range, issn, url, keywords, language, " +
         "content_hash";
+
+    /// <summary>Column order shared by every document query and <see cref="ReadDocument"/>.</summary>
+    private const string DocumentColumns = DocumentInsertColumns + ", deleted_at";
+
+    /// <summary>Column order shared by every note query and <see cref="ReadNote"/>.</summary>
+    private const string NoteColumns =
+        "id, title, body, created_at, updated_at, source_document_id, source_page, deleted_at";
 
     /// <summary>Citation detail added after the first release; older vaults gain the columns on open.</summary>
     private static readonly string[] DocumentDetailColumns =
@@ -114,7 +124,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 created_at         TEXT NOT NULL,
                 updated_at         TEXT NOT NULL,
                 source_document_id TEXT NULL,
-                source_page        INTEGER NULL
+                source_page        INTEGER NULL,
+                deleted_at         TEXT NULL
             );
 
             CREATE TABLE IF NOT EXISTS tags (
@@ -147,7 +158,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 year        INTEGER NULL,
                 doi         TEXT NULL,
                 page_count  INTEGER NOT NULL,
-                imported_at TEXT NOT NULL
+                imported_at TEXT NOT NULL,
+                deleted_at  TEXT NULL
             );
 
             CREATE TABLE IF NOT EXISTS highlights (
@@ -232,6 +244,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
 
         await EnsureDocumentDetailColumnsAsync(connection, ct);
         await EnsureChatColumnsAsync(connection, ct);
+        await EnsureTrashColumnsAsync(connection, ct);
 
         try
         {
@@ -287,15 +300,46 @@ public sealed class SqliteVaultRepository : IVaultRepository
             await ExecuteAsync(connection, "ALTER TABLE chat_messages ADD COLUMN warning TEXT NULL;", ct);
     }
 
+    /// <summary>Adds the trash marker to a vault created before the bin existed.</summary>
+    private static async Task EnsureTrashColumnsAsync(SqliteConnection connection, CancellationToken ct)
+    {
+        await EnsureColumnAsync(connection, "notes", "deleted_at", ct);
+        await EnsureColumnAsync(connection, "documents", "deleted_at", ct);
+
+        // After the columns, so a vault from before the bin still gets its indexes.
+        await ExecuteAsync(connection, "CREATE INDEX IF NOT EXISTS ix_notes_deleted ON notes (deleted_at);", ct);
+        await ExecuteAsync(connection, "CREATE INDEX IF NOT EXISTS ix_documents_deleted ON documents (deleted_at);", ct);
+    }
+
+    private static async Task EnsureColumnAsync(
+        SqliteConnection connection,
+        string table,
+        string column,
+        CancellationToken ct)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"PRAGMA table_info({table});";
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                existing.Add(reader.GetString(1));
+        }
+
+        if (!existing.Contains(column))
+            await ExecuteAsync(connection, $"ALTER TABLE {table} ADD COLUMN {column} TEXT NULL;", ct);
+    }
+
     // ----------------------------------------------------------------- notes
 
     public async Task<IReadOnlyList<Note>> ListNotesAsync(CancellationToken ct = default)
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT id, title, body, created_at, updated_at, source_document_id, source_page
-            FROM notes ORDER BY updated_at DESC;
+        command.CommandText = $"""
+            SELECT {NoteColumns}
+            FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC;
             """;
 
         var notes = new List<Note>();
@@ -313,9 +357,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT id, title, body, created_at, updated_at, source_document_id, source_page
-            FROM notes WHERE id = $id;
+        command.CommandText = $"""
+            SELECT {NoteColumns} FROM notes WHERE id = $id AND deleted_at IS NULL;
             """;
         command.Parameters.AddWithValue("$id", id);
 
@@ -337,9 +380,10 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT id, title, body, created_at, updated_at, source_document_id, source_page
-            FROM notes WHERE source_document_id = $doc ORDER BY source_page, updated_at DESC;
+        command.CommandText = $"""
+            SELECT {NoteColumns}
+            FROM notes WHERE source_document_id = $doc AND deleted_at IS NULL
+            ORDER BY source_page, updated_at DESC;
             """;
         command.Parameters.AddWithValue("$doc", documentId);
 
@@ -428,6 +472,160 @@ public sealed class SqliteVaultRepository : IVaultRepository
         var path = MarkdownPath(noteId);
         if (File.Exists(path))
             File.Delete(path);
+    }
+
+    // ----------------------------------------------------------------- trash
+
+    /// <summary>
+    /// Moves a note to the trash: it leaves every list, search and the graph, but
+    /// its row, tags, links and embeddings stay so a restore puts it back. The
+    /// markdown mirror is removed, because a trashed note is not in the vault.
+    /// </summary>
+    public async Task TrashNoteAsync(string noteId, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+
+            await using (var mark = connection.CreateCommand())
+            {
+                mark.CommandText = "UPDATE notes SET deleted_at = $at WHERE id = $id;";
+                mark.Parameters.AddWithValue("$at", ToDb(DateTimeOffset.Now));
+                mark.Parameters.AddWithValue("$id", noteId);
+                await mark.ExecuteNonQueryAsync(ct);
+            }
+
+            if (_ftsAvailable)
+            {
+                await using var fts = connection.CreateCommand();
+                fts.CommandText = "DELETE FROM notes_fts WHERE note_id = $id;";
+                fts.Parameters.AddWithValue("$id", noteId);
+                await fts.ExecuteNonQueryAsync(ct);
+            }
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+
+        var path = MarkdownPath(noteId);
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
+    public async Task RestoreNoteAsync(string noteId, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+
+            await using (var unmark = connection.CreateCommand())
+            {
+                unmark.CommandText = "UPDATE notes SET deleted_at = NULL WHERE id = $id;";
+                unmark.Parameters.AddWithValue("$id", noteId);
+                await unmark.ExecuteNonQueryAsync(ct);
+            }
+
+            Note? note = null;
+            await using (var read = connection.CreateCommand())
+            {
+                read.CommandText = $"SELECT {NoteColumns} FROM notes WHERE id = $id;";
+                read.Parameters.AddWithValue("$id", noteId);
+                await using var reader = await read.ExecuteReaderAsync(ct);
+                if (await reader.ReadAsync(ct))
+                    note = ReadNote(reader);
+            }
+
+            if (note is not null)
+            {
+                await UpsertFtsAsync(connection, note, ct);
+                await AttachTagsAsync(connection, new[] { note }, ct);
+            }
+
+            if (note is null)
+                return;
+
+            await WriteMarkdownAsync(note, ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<Note>> ListTrashedNotesAsync(CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {NoteColumns}
+            FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC;
+            """;
+
+        var notes = new List<Note>();
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+                notes.Add(ReadNote(reader));
+        }
+
+        await AttachTagsAsync(connection, notes, ct);
+        return notes;
+    }
+
+    /// <summary>Takes a paper out of the vault without losing its PDF or its rows.</summary>
+    public async Task TrashDocumentAsync(string id, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE documents SET deleted_at = $at WHERE id = $id;";
+            command.Parameters.AddWithValue("$at", ToDb(DateTimeOffset.Now));
+            command.Parameters.AddWithValue("$id", id);
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async Task RestoreDocumentAsync(string id, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE documents SET deleted_at = NULL WHERE id = $id;";
+            command.Parameters.AddWithValue("$id", id);
+            await command.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<PdfDocument>> ListTrashedDocumentsAsync(CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {DocumentColumns}
+            FROM documents WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC;
+            """;
+
+        var documents = new List<PdfDocument>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            documents.Add(ReadDocument(reader));
+
+        return documents;
     }
 
     // ------------------------------------------------------------------ tags
@@ -633,7 +831,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT {DocumentColumns} FROM documents ORDER BY imported_at DESC;";
+        command.CommandText = $"SELECT {DocumentColumns} FROM documents WHERE deleted_at IS NULL ORDER BY imported_at DESC;";
 
         var documents = new List<PdfDocument>();
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -647,7 +845,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
     {
         await using var connection = await OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT {DocumentColumns} FROM documents WHERE id = $id;";
+        command.CommandText = $"SELECT {DocumentColumns} FROM documents WHERE id = $id AND deleted_at IS NULL;";
         command.Parameters.AddWithValue("$id", id);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -662,7 +860,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             await using var connection = await OpenAsync(ct);
             await using var command = connection.CreateCommand();
             command.CommandText = $"""
-                INSERT INTO documents ({DocumentColumns})
+                INSERT INTO documents ({DocumentInsertColumns})
                 VALUES ($id, $path, $name, $title, $authors, $year, $doi, $pages, $imported,
                         $itemType, $abstract, $publication, $volume, $issue,
                         $pageRange, $issn, $url, $keywords, $language, $contentHash)
@@ -858,7 +1056,8 @@ public sealed class SqliteVaultRepository : IVaultRepository
         command.CommandText = """
             SELECT d.id
             FROM documents d
-            WHERE NOT EXISTS (SELECT 1 FROM document_pages p WHERE p.document_id = d.id)
+            WHERE d.deleted_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM document_pages p WHERE p.document_id = d.id)
             ORDER BY d.imported_at;
             """;
 
@@ -892,7 +1091,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
                     SELECT pages_fts.document_id, d.title, pages_fts.page,                            snippet(pages_fts, 2, '[', ']', ' … ', 14)
                     FROM pages_fts
                     JOIN documents d ON d.id = pages_fts.document_id
-                    WHERE pages_fts MATCH $q
+                    WHERE pages_fts MATCH $q AND d.deleted_at IS NULL
                     ORDER BY rank
                     LIMIT $limit;
                     """;
@@ -921,7 +1120,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
                 SELECT p.document_id, d.title, p.page, substr(p.text, 1, 160)
                 FROM document_pages p
                 JOIN documents d ON d.id = p.document_id
-                WHERE p.text LIKE $like
+                WHERE p.text LIKE $like AND d.deleted_at IS NULL
                 ORDER BY p.page
                 LIMIT $limit;
                 """;
@@ -1273,7 +1472,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.CommandText = """
                 SELECT id, title, substr(body, 1, 160)
                 FROM notes
-                WHERE title LIKE $like OR body LIKE $like
+                WHERE deleted_at IS NULL AND (title LIKE $like OR body LIKE $like)
                 ORDER BY updated_at DESC
                 LIMIT $limit;
                 """;
@@ -1290,7 +1489,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
             command.CommandText = """
                 SELECT id, title, substr(authors, 1, 120) || ' \u00b7 ' || COALESCE(year, 'n.d.')
                 FROM documents
-                WHERE title LIKE $like OR authors LIKE $like
+                WHERE deleted_at IS NULL AND (title LIKE $like OR authors LIKE $like)
                 ORDER BY imported_at DESC
                 LIMIT $limit;
                 """;
@@ -1524,6 +1723,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         UpdatedAt = FromDb(reader.GetString(4)),
         SourceDocumentId = reader.IsDBNull(5) ? null : reader.GetString(5),
         SourcePage = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+        DeletedAt = reader.IsDBNull(7) ? null : FromDb(reader.GetString(7)),
     };
 
     private static PdfDocument ReadDocument(SqliteDataReader reader) => new()
@@ -1548,6 +1748,7 @@ public sealed class SqliteVaultRepository : IVaultRepository
         Keywords = Text(reader, 17),
         Language = Text(reader, 18),
         ContentHash = Text(reader, 19),
+        DeletedAt = reader.IsDBNull(20) ? null : FromDb(reader.GetString(20)),
     };
 
     private static string? Text(SqliteDataReader reader, int ordinal) =>

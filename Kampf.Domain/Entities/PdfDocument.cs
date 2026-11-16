@@ -37,6 +37,9 @@ public sealed class PdfDocument
     public string? Language { get; set; }
     public DateTimeOffset ImportedAt { get; set; } = DateTimeOffset.Now;
 
+    /// <summary>Set while the paper sits in the trash; its PDF and rows are kept.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
     public static PdfDocument Create(string filePath, string title, int pageCount)
     {
         var name = Path.GetFileName(filePath);

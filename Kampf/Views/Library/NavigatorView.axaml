@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Kampf.ViewModels"
+             xmlns:views="using:Kampf.Views"
              xmlns:controls="using:Kampf.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -8,7 +9,8 @@
              x:Class="Kampf.Views.NavigatorView"
              x:DataType="vm:MainViewModel">
     <!-- Search, folders and note rows. The search box lives here rather than in the
-         shell, so Ctrl+F only has to ask this control for focus. -->
+         shell, so Ctrl+F only has to ask this control for focus. The two row visuals
+         are their own controls: NavigatorFolderItem and NavigatorRowItem. -->
     <Border MinWidth="200"
             Background="{DynamicResource PanelBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
@@ -16,7 +18,7 @@
         <Grid RowDefinitions="Auto,Auto,*,Auto">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,12,10,8">
                 <TextBox x:Name="SearchBox"
-                         Padding="30,6,9,6"
+                         Padding="10,6,9,6"
                          Text="{Binding SearchQuery, Mode=TwoWay}"
                          Watermark="Search text or tag:name"
                          AutomationProperties.Name="Search notes and papers"
@@ -31,15 +33,43 @@
                     </TextBox.InnerLeftContent>
                 </TextBox>
 
-                <Button Grid.Column="1"
+                <!-- New folder: its name is also the tag its notes carry, which is
+                     what colours them in the graph. -->
+                <Button x:Name="AddFolderButton"
+                        Grid.Column="1"
                         Classes="ghost iconButton"
                         Margin="6,0,0,0"
-                        Command="{Binding NewNoteCommand}"
-                        AutomationProperties.Name="New note"
-                        ToolTip.Tip="New note (Ctrl+N)">
+                        AutomationProperties.Name="New folder"
+                        ToolTip.Tip="New folder">
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <StackPanel Width="210"
+                                        Spacing="8"
+                                        AttachedToVisualTree="OnNewFolderFlyoutOpened">
+                                <TextBlock Text="NEW FOLDER"
+                                           Classes="section"
+                                           FontSize="9"/>
+                                <TextBox Text="{Binding NewFolderName, Mode=TwoWay}"
+                                         Watermark="Folder name"
+                                         AutomationProperties.Name="Folder name"
+                                         KeyDown="OnNewFolderKeyDown"/>
+                                <Button Classes="primary"
+                                        HorizontalAlignment="Right"
+                                        Click="OnCreateFolderClick">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <TextBlock Classes="icon"
+                                                   FontSize="15"
+                                                   Text="{x:Static controls:Symbols.CreateNewFolder}"
+                                                   Foreground="{DynamicResource OnAccentBrush}"/>
+                                        <TextBlock Text="Create"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
                     <TextBlock Classes="icon"
                                FontSize="18"
-                               Text="{x:Static controls:Symbols.NoteAdd}"/>
+                               Text="{x:Static controls:Symbols.CreateNewFolder}"/>
                 </Button>
             </Grid>
 
@@ -68,89 +98,14 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:NavigatorFolderViewModel">
                             <StackPanel Margin="0,0,0,3">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <Button Classes="folderRow"
-                                            Command="{Binding ToggleCommand}"
-                                            ToolTip.Tip="{Binding Title}">
-                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                                            <Panel Width="16" Height="16" VerticalAlignment="Center">
-                                                <TextBlock Classes="icon"
-                                                           FontSize="16"
-                                                           Text="{x:Static controls:Symbols.ExpandMore}"
-                                                           Foreground="{DynamicResource FaintBrush}"
-                                                           IsVisible="{Binding IsExpanded}"/>
-                                                <TextBlock Classes="icon"
-                                                           FontSize="16"
-                                                           Text="{x:Static controls:Symbols.ChevronRight}"
-                                                           Foreground="{DynamicResource FaintBrush}"
-                                                           IsVisible="{Binding IsCollapsed}"/>
-                                            </Panel>
-
-                                            <TextBlock Grid.Column="1"
-                                                       Classes="icon"
-                                                       FontSize="15"
-                                                       Margin="4,0,6,0"
-                                                       Text="{x:Static controls:Symbols.Folder}"
-                                                       Foreground="{DynamicResource MutedBrush}"/>
-
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding Title}"
-                                                       FontSize="12"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
-
-                                            <TextBlock Grid.Column="3"
-                                                       Text="{Binding CountLabel}"
-                                                       Classes="meta"
-                                                       FontSize="10.5"
-                                                       Margin="6,0,2,0"
-                                                       VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Button>
-
-                                    <Button Grid.Column="1"
-                                            Classes="addRowNote"
-                                            IsVisible="{Binding CanAddNote}"
-                                            Command="{Binding AddNoteCommand}"
-                                            ToolTip.Tip="New note in this folder">
-                                        <TextBlock Classes="icon"
-                                                   FontSize="15"
-                                                   Text="{x:Static controls:Symbols.Add}"
-                                                   Foreground="{DynamicResource MutedBrush}"/>
-                                    </Button>
-                                </Grid>
+                                <views:NavigatorFolderItem/>
 
                                 <ItemsControl ItemsSource="{Binding Rows}"
                                               IsVisible="{Binding IsExpanded}"
                                               Margin="18,1,0,2">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:NavigatorRowViewModel">
-                                            <Button Classes="treeRow"
-                                                    Classes.active="{Binding IsSelected}"
-                                                    Command="{Binding SelectCommand}"
-                                                    ToolTip.Tip="{Binding ToolTip}">
-                                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                                    <TextBlock Classes="icon"
-                                                               FontSize="13"
-                                                               Margin="0,0,7,0"
-                                                               Text="{x:Static controls:Symbols.Article}"
-                                                               Foreground="{DynamicResource FaintBrush}"/>
-
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding Title}"
-                                                               FontSize="12"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"/>
-
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="{Binding Detail}"
-                                                               IsVisible="{Binding HasDetail}"
-                                                               Classes="meta"
-                                                               FontSize="10"
-                                                               Margin="8,0,0,0"
-                                                               VerticalAlignment="Center"/>
-                                                </Grid>
-                                            </Button>
+                                            <views:NavigatorRowItem/>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

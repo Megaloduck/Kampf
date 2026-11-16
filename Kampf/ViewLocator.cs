@@ -12,8 +12,19 @@ public class ViewLocator : IDataTemplate
         if (param is null)
             return null;
 
-        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
+        // View models and views mirror each other's folders (Shell, Library,
+        // Graph, …), but a view's namespace stays Kampf.Views, so the folder is
+        // dropped and only the type name is mapped.
+        var viewModelName = param.GetType();
+        var name = viewModelName.FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
         var type = Type.GetType(name);
+
+        if (type is null)
+        {
+            var leaf = viewModelName.Name.Replace("ViewModel", "View", StringComparison.Ordinal);
+            type = Type.GetType("Kampf.Views." + leaf);
+            name = "Kampf.Views." + leaf;
+        }
 
         if (type != null)
         {

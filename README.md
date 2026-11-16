@@ -29,7 +29,11 @@ that do not need a sync transport: publishing, an Android head, and a measured
 - **In-page search** — a search box above the pages marks every hit on the
   rendered page (green, with the current hit in orange); ↑ / ↓ or Enter step
   through them, Escape clears the query. A paper that has not been rendered yet
-  is searched through its stored text, so this works even without PDFium.
+  is searched through its stored text, so this works even without PDFium, and
+  the text view tints the hit words in the same colours — as it does a cited
+  quote and every note captured from the page. Opening a paper from a search
+  result brings the query with it, so the words that matched are already marked
+  and the first marked one is the hit that found it.
 - **Remembered place** — a paper reopens on the page it was left on, scrolled to
   where you were, at the zoom you read it at; zoom in/out from the header and
   click the percentage to return to 100%. The reading position is stored in the
@@ -107,9 +111,15 @@ graph canvas and markdown preview follow the active theme.
   system title bar. The header is the drag area (the lock screen has its own
   one), double-clicking it maximizes and restores, and macOS and Linux keep
   their native title bar.
-- **Deletion** — notes and imported papers can be deleted (both ask for a second  click). Deleting a paper removes its stored PDF, extracted page text, page
-  vectors, highlights and edges; it is refused while notes still carry page
-  anchors into it.
+- **Deletion and the trash bin** — deleting a note or an imported paper (both
+  ask for a second click) moves it to the Trash bin instead of destroying it: it
+  leaves the navigator, search, the graph and the markdown mirror, while its
+  rows, tags, highlights and the stored PDF stay put. The bin lists what was
+  deleted and when, with *Restore* for each item and *Empty trash* (which asks
+  once) as the only permanent delete. Trashing a paper is refused while notes
+  still carry page anchors into it, so provenance never points at a file that
+  is gone; emptying the bin deletes the PDF, page text, vectors, highlights and
+  edges as before.
 - **Undo / redo** — icon buttons in the window header, next to the theme switch,
   backed by Avalonia's text history (`Ctrl+Z` / `Ctrl+Y` also work). They stay
   disabled until a note is loaded and its history has something to undo.
@@ -132,8 +142,10 @@ graph canvas and markdown preview follow the active theme.
   Configuration, Data sharing and Connection, Extension, Trash bin and Settings.
   The Library navigator groups notes into folders by their first tag, with the
   papers in their own folder; a folder's `+` starts a note that already carries
-  that tag. Extension and Trash bin are honest empty states: this build has no
-  extension system, and deleting a note or paper is permanent.
+  that tag. A folder can be renamed from the same menu (the rename is the tag's),
+  deleted (its notes go to the trash and restore back into it), and *Add folder*
+  next to the search box names one before any note carries it. Extension is an
+  honest empty state: this build has no extension system.
 - **Settings** — theme, vault encryption (enable / change passphrase / turn
   off), the markdown mirror toggle, rebindable keyboard shortcuts and where the
   vault lives. The local model is configured on its own LLM Configuration page

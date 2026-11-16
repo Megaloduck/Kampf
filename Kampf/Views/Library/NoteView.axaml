@@ -67,7 +67,7 @@
                         <Button Classes="ghost danger"
                                 Command="{Binding DeleteNoteCommand}"
                                 IsVisible="{Binding HasActiveNote}"
-                                ToolTip.Tip="Delete this note (click twice to confirm)">
+                                ToolTip.Tip="Move this note to the trash (click twice to confirm)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Classes="icon"
                                            FontSize="16"
@@ -80,7 +80,7 @@
                 </Grid>
 
                 <!-- Confirmation hint: pull it out of the button row so it doesn't shift layout. -->
-                <TextBlock Text="Click Delete again to confirm"
+                <TextBlock Text="Click Delete again to move it to the trash"
                            Classes="meta"
                            FontSize="10.5"
                            Foreground="{DynamicResource WarnBrush}"

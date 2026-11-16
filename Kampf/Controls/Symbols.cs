@@ -43,6 +43,10 @@ public static class Symbols
     public const string CloudSync = "\uEB5A";
     public const string Extension = "\uE87B";
     public const string Folder = "\uE2C7";
+    public const string FolderOpen = "\uE2C8";
+    public const string CreateNewFolder = "\uE2CC";
+    public const string Description = "\uE873";
+    public const string StickyNote = "\uF1FC";
     public const string Article = "\uEF42";
     public const string Keyboard = "\uE312";
     public const string ExpandMore = "\uE5CF";

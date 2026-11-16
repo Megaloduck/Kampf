@@ -19,6 +19,12 @@ public interface IVaultRepository
     Task DeleteNoteAsync(string id, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> ListNotesForDocumentAsync(string documentId, CancellationToken ct = default);
 
+    // Trash: a trashed note or paper leaves every list and search but keeps its
+    // rows, so restoring it puts it back exactly where it was.
+    Task TrashNoteAsync(string id, CancellationToken ct = default);
+    Task RestoreNoteAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<Note>> ListTrashedNotesAsync(CancellationToken ct = default);
+
     // Tags
     Task<IReadOnlyList<Tag>> ListTagsAsync(CancellationToken ct = default);
     Task<Tag> EnsureTagAsync(string name, CancellationToken ct = default);
@@ -39,6 +45,10 @@ public interface IVaultRepository
 
     /// <summary>Removes a document together with its highlights and graph edges.</summary>
     Task DeleteDocumentAsync(string id, CancellationToken ct = default);
+
+    Task TrashDocumentAsync(string id, CancellationToken ct = default);
+    Task RestoreDocumentAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<PdfDocument>> ListTrashedDocumentsAsync(CancellationToken ct = default);
 
     // Extracted page text, so a paper's body can be searched and cited
     Task<IReadOnlyList<DocumentPage>> ListDocumentPagesAsync(string documentId, CancellationToken ct = default);

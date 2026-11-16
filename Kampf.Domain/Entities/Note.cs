@@ -17,6 +17,9 @@ public sealed class Note
     /// <summary>1-based page the note was anchored to, if any.</summary>
     public int? SourcePage { get; set; }
 
+    /// <summary>Set while the note sits in the trash; restored notes carry null again.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
     /// <summary>Tags are always explicit: a user (or an accepted suggestion) put them here.</summary>
     public List<Tag> Tags { get; } = new();
 

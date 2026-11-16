@@ -42,7 +42,7 @@
         </Border>
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Margin="24,16,24,28" Spacing="14" MaxWidth="820" HorizontalAlignment="Left">
+            <StackPanel Margin="24,16,24,28" Spacing="14" HorizontalAlignment="Left">
 
                 <!-- ============================================ appearance -->
                 <Border Background="{DynamicResource PanelAltBrush}"

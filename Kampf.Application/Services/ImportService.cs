@@ -156,6 +156,39 @@ public sealed class ImportService
     /// </summary>
     public async Task DeleteDocumentAsync(PdfDocument document, CancellationToken ct = default)
     {
+        await RefuseWhileAnchoredAsync(document, ct);
+
+        await _repo.DeleteDocumentAsync(document.Id, ct);
+        await _files.DeleteAsync(document.FilePath, ct);
+        await _repo.AppendAuditAsync(
+            AuditEntry.Create("document.deleted", $"{document.Title} ({document.FileName})"),
+            ct);
+    }
+
+    /// <summary>
+    /// Deleting a paper puts it in the trash: the row, its pages, highlights and
+    /// the stored PDF all stay, so a restore returns a paper that still opens.
+    /// </summary>
+    public async Task TrashDocumentAsync(PdfDocument document, CancellationToken ct = default)
+    {
+        await RefuseWhileAnchoredAsync(document, ct);
+
+        await _repo.TrashDocumentAsync(document.Id, ct);
+        await _repo.AppendAuditAsync(
+            AuditEntry.Create("document.trashed", $"{document.Title} ({document.FileName})"),
+            ct);
+    }
+
+    public async Task RestoreDocumentAsync(PdfDocument document, CancellationToken ct = default)
+    {
+        await _repo.RestoreDocumentAsync(document.Id, ct);
+        await _repo.AppendAuditAsync(
+            AuditEntry.Create("document.restored", $"{document.Title} ({document.FileName})"),
+            ct);
+    }
+
+    private async Task RefuseWhileAnchoredAsync(PdfDocument document, CancellationToken ct)
+    {
         var anchored = await _repo.ListNotesForDocumentAsync(document.Id, ct);
         if (anchored.Count > 0)
         {
@@ -163,11 +196,5 @@ public sealed class ImportService
                 $"{anchored.Count} note(s) were captured from this paper. Delete those notes first, " +
                 "so their page anchors still point at a real source.");
         }
-
-        await _repo.DeleteDocumentAsync(document.Id, ct);
-        await _files.DeleteAsync(document.FilePath, ct);
-        await _repo.AppendAuditAsync(
-            AuditEntry.Create("document.deleted", $"{document.Title} ({document.FileName})"),
-            ct);
     }
 }
