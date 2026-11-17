@@ -37,9 +37,17 @@ public sealed class Vault
 
     /// <summary>
     /// Points the vault at a different local model. Settings applies this at
-    /// runtime so a model can be chosen without restarting the app.
+    /// runtime so a model can be chosen without restarting the app. The model it
+    /// replaces releases its loaded weights here, not when the process exits.
     /// </summary>
-    public void UseChatModel(IChatModel? model) => Chat = model;
+    public void UseChatModel(IChatModel? model)
+    {
+        var previous = Chat;
+        Chat = model;
+
+        if (!ReferenceEquals(previous, model) && previous is IDisposable disposable)
+            disposable.Dispose();
+    }
 
     /// <summary>Paper page text and page vectors: the searchable body of imported PDFs.</summary>
     public DocumentPageIndex Pages { get; }
@@ -64,7 +72,7 @@ public sealed class Vault
 
         // A model chosen in Settings wins; the environment stays the fallback so
         // an existing setup keeps working after this file is introduced.
-        Chat = ChatModelSettings.Load(rootPath).CreateModel() ?? ChatModels.CreateFromEnvironment();
+        Chat = ChatModelSettings.Load(rootPath).CreateModel(rootPath) ?? ChatModels.CreateFromEnvironment();
         Pages = new DocumentPageIndex(Repository, PdfExtractor, Embeddings);
         _keyHex = keyHex;
         IsEncrypted = keyHex is not null;

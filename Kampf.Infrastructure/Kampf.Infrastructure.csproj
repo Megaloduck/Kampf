@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" />
     <PackageReference Include="PdfPig" />
+    <PackageReference Include="LLamaSharp" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" />
   </ItemGroup>
 
   <ItemGroup>

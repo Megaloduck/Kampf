@@ -13,6 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The backend's build props copy the native llama.cpp libraries into this
+         host's output; they do not flow from the Infrastructure project reference. -->
+    <PackageReference Include="LLamaSharp.Backend.Cpu" />
     <PackageReference Include="Avalonia.Desktop" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
     <PackageReference Include="Avalonia.Diagnostics" >

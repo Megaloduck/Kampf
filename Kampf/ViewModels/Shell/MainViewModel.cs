@@ -93,6 +93,20 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Cancels the answer that is currently streaming.</summary>
     private CancellationTokenSource? _chatCts;
 
+    /// <summary>This machine as last scanned: cores and real free memory.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HardwareCores), nameof(HardwareMemory), nameof(HardwareFreeMemory))]
+    private HardwareProfile _hardware = HardwareProbe.Detect();
+
+    /// <summary>The model the scan says fits here, so one click can fill it in.</summary>
+    private ModelRecommendation? _recommendedModel;
+
+    /// <summary>True when chat-model.json names a downloaded model to run.</summary>
+    private readonly bool _hasSavedLocalModel;
+
+    /// <summary>File sizes already read from Hugging Face, so revisiting the page is instant.</summary>
+    private readonly Dictionary<string, long> _modelSizeCache = new(StringComparer.OrdinalIgnoreCase);
+
     private List<Note> _allNotes = new();
     private List<PdfDocument> _allDocuments = new();
     private List<Link> _allLinks = new();
@@ -133,6 +147,18 @@ public partial class MainViewModel : ViewModelBase
         ChatServerUrl = savedModel.ServerUrl ?? string.Empty;
         ChatModelName = savedModel.Model ?? string.Empty;
         ChatUsesOllama = savedModel.Protocol == ChatProtocol.Ollama;
+
+        _hasSavedLocalModel = savedModel.Protocol == ChatProtocol.Local;
+
+        if (_hasSavedLocalModel)
+        {
+            HuggingFaceRepo = savedModel.ServerUrl ?? HuggingFaceModelReference.DefaultRepo;
+            HuggingFaceFile = savedModel.Model ?? HuggingFaceModelReference.DefaultFile;
+        }
+
+        // The scan is local and cheap, so the page opens with real numbers even
+        // before it is visited; only the model's size needs the network.
+        RefreshRecommendation();
 
         VaultPath = vault.RootPath;
         SourceFilters = new ObservableCollection<string> { AllSources, NotesOnly, DocumentsOnly };
@@ -661,6 +687,191 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>True when the URL is a native Ollama server rather than an OpenAI-shaped one.</summary>
     [ObservableProperty] private bool _chatUsesOllama;
 
+    // ------------------------- settings: the model the app downloads and runs
+
+    /// <summary>The Hugging Face repository holding a GGUF file.</summary>
+    [ObservableProperty] private string _huggingFaceRepo = HuggingFaceModelReference.DefaultRepo;
+
+    /// <summary>The .gguf file inside that repository.</summary>
+    [ObservableProperty] private string _huggingFaceFile = HuggingFaceModelReference.DefaultFile;
+
+    /// <summary>True while weights are being fetched, so the page can say so.</summary>
+    [ObservableProperty] private bool _isDownloadingModel;
+
+    /// <summary>Download progress or the error that stopped it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHuggingFaceStatus))]
+    private string _huggingFaceStatus = string.Empty;
+
+    public bool HasHuggingFaceStatus => HuggingFaceStatus.Length > 0;
+
+    // ----------------------------------------- settings: hardware and model fit
+
+    public string HardwareCores => Hardware.LogicalCores.ToString();
+
+    public string HardwareMemory => $"{Hardware.TotalMemoryGb:0.0} GB";
+
+    public string HardwareFreeMemory => $"{Hardware.AvailableMemoryGb:0.0} GB";
+
+    /// <summary>What the typed model would cost in memory, and whether it fits.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasModelFitSummary))]
+    private string _modelFitSummary = string.Empty;
+
+    public bool HasModelFitSummary => ModelFitSummary.Length > 0;
+
+    /// <summary>The largest bundled model that fits this machine.</summary>
+    [ObservableProperty] private string _modelRecommendation = string.Empty;
+
+    private void RefreshRecommendation()
+    {
+        _recommendedModel = ModelSizing.Recommend(Hardware);
+        ModelRecommendation =
+            $"Recommended for this machine: {_recommendedModel.Describe()}.";
+    }
+
+    /// <summary>
+    /// Scans the machine again and sizes the model in the fields: weights, the
+    /// 4k-token context cache and working memory, compared with what is actually
+    /// free. The size comes from disk when the file is already in the vault, and
+    /// from Hugging Face's headers otherwise.
+    /// </summary>
+    [RelayCommand]
+    private async Task EstimateModelFitAsync()
+    {
+        Hardware = HardwareProbe.Detect();
+        RefreshRecommendation();
+
+        if (!HuggingFaceModelReference.TryParse(
+                HuggingFaceRepo,
+                HuggingFaceFile,
+                out var reference,
+                out var error))
+        {
+            ModelFitSummary = error ?? "Name a GGUF file to size it.";
+            return;
+        }
+
+        ModelFitSummary = "Measuring the model\u2026";
+
+        try
+        {
+            long size;
+            var key = reference.DownloadUri.ToString();
+
+            using var store = new HuggingFaceModelStore(_vault.RootPath);
+            var local = store.PathFor(reference);
+
+            if (File.Exists(local))
+            {
+                size = new FileInfo(local).Length;
+            }
+            else if (_modelSizeCache.TryGetValue(key, out var cached))
+            {
+                size = cached;
+            }
+            else
+            {
+                // A page visit must not hang on a slow network.
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                size = await store.GetSizeAsync(reference, timeout.Token);
+                _modelSizeCache[key] = size;
+            }
+
+            var fit = ModelSizing.Estimate(size, Hardware.AvailableMemoryBytes);
+            ModelFitSummary = $"{reference.FileName}: {fit.Describe()}.";
+        }
+        catch (OperationCanceledException)
+        {
+            ModelFitSummary =
+                "Hugging Face did not answer in time \u2014 the size will be known once the file is downloaded.";
+        }
+        catch (Exception ex)
+        {
+            ModelFitSummary = "Could not size the model: " + ex.Message;
+        }
+    }
+
+    /// <summary>Fills the fields with the model the scan recommends.</summary>
+    [RelayCommand]
+    private async Task UseRecommendedModelAsync()
+    {
+        if (_recommendedModel is not { } recommendation)
+            return;
+
+        HuggingFaceRepo = recommendation.RepoId;
+        HuggingFaceFile = recommendation.FileName;
+        HuggingFaceStatus = $"Filled in {recommendation.Label}. Press Download & use to fetch it.";
+        await EstimateModelFitAsync();
+    }
+
+    /// <summary>
+    /// Fetches the chosen GGUF file into <c>vault/models</c> and makes it the
+    /// answering model. Inference then happens in this process — no server, no
+    /// hosted API — so the only network use is the download itself.
+    /// </summary>
+    [RelayCommand]
+    private async Task DownloadHuggingFaceModelAsync()
+    {
+        if (IsDownloadingModel)
+            return;
+
+        if (!HuggingFaceModelReference.TryParse(
+                HuggingFaceRepo,
+                HuggingFaceFile,
+                out var reference,
+                out var error))
+        {
+            HuggingFaceStatus = error ?? "That is not a model file.";
+            return;
+        }
+
+        IsDownloadingModel = true;
+        HuggingFaceStatus = "Contacting huggingface.co\u2026";
+
+        var downloadFinished = false;
+
+        try
+        {
+            using var store = new HuggingFaceModelStore(_vault.RootPath);
+            var progress = new Progress<ModelDownloadProgress>(update =>
+            {
+                // A report queued just before completion must not replace the
+                // "Ready" line with a stale percentage.
+                if (!downloadFinished)
+                    HuggingFaceStatus = $"Downloading {reference.FileName} \u2014 {update.Describe()}";
+            });
+
+            var path = await store.DownloadAsync(reference, progress);
+            downloadFinished = true;
+
+            var settings = new ChatModelSettings(reference.RepoId, reference.FileName, ChatProtocol.Local);
+            settings.Save(_vault.RootPath);
+
+            UseChatModel(
+                settings.CreateModel(_vault.RootPath),
+                $"Downloaded {reference.FileName}; Idea-Craft answers with it inside the app.");
+
+            var megabytes = new FileInfo(path).Length / (1024d * 1024);
+            HuggingFaceStatus = $"Ready \u2014 {reference.FileName} ({megabytes:0.0} MB) is in the vault's models folder.";
+
+            // The file is on disk now, so the fit no longer depends on the network.
+            await EstimateModelFitAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            HuggingFaceStatus = "Download cancelled. The partial file is kept, so trying again resumes it.";
+        }
+        catch (Exception ex)
+        {
+            HuggingFaceStatus = "Download failed: " + ex.Message;
+        }
+        finally
+        {
+            IsDownloadingModel = false;
+        }
+    }
+
     /// <summary>The models the last Detect found, so the exact id can be picked.</summary>
     public ObservableCollection<ChatModelChoiceViewModel> ChatModelChoices { get; } = new();
 
@@ -723,7 +934,11 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ChatModelLabel));
         OnPropertyChanged(nameof(HasLocalChatModel));
 
-        ChatModelHealth = model is null ? string.Empty : "Saved. Press Check to test the connection.";
+        ChatModelHealth = model is null
+            ? string.Empty
+            : model.Name.StartsWith("local:", StringComparison.Ordinal)
+                ? "Saved. It runs inside the app; the first question loads the weights."
+                : "Saved. Press Check to test the connection.";
         StatusMessage = status;
     }
 
@@ -915,6 +1130,15 @@ public partial class MainViewModel : ViewModelBase
             StatusMessage = _allNotes.Count == 0 && _allDocuments.Count == 0
                 ? "Empty vault \u2014 import a PDF or create your first note."
                 : $"Vault ready \u00b7 {_allNotes.Count} notes \u00b7 {_allDocuments.Count} papers";
+
+            // A saved local model is sized at startup, so its fit does not wait
+            // for the page to be opened. A model still on disk is measured
+            // immediately; one that was never downloaded is sized in the
+            // background so a slow Hugging Face never delays the window.
+            if (_vault.Chat is LocalChatModel)
+                await EstimateModelFitAsync();
+            else if (_hasSavedLocalModel)
+                _ = EstimateModelFitAsync();
 
             if (_allDocuments.Count > 0)
                 _ = IndexPaperPagesAsync(_allDocuments);
@@ -2152,7 +2376,11 @@ public partial class MainViewModel : ViewModelBase
     private void ShowGraph() => View = VaultView.Graph;
 
     [RelayCommand]
-    private void ShowLlmConfiguration() => View = VaultView.LlmConfig;
+    private async Task ShowLlmConfigurationAsync()
+    {
+        View = VaultView.LlmConfig;
+        await EstimateModelFitAsync();
+    }
 
     [RelayCommand]
     private void ShowDataSharing() => View = VaultView.DataSharing;

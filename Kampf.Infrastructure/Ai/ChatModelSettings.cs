@@ -12,6 +12,9 @@ public enum ChatProtocol
 
     /// <summary>Native Ollama API on its own port.</summary>
     Ollama = 1,
+
+    /// <summary>A GGUF file downloaded from Hugging Face and run inside the app.</summary>
+    Local = 2,
 }
 
 /// <summary>
@@ -44,8 +47,8 @@ public sealed record ChatModelSettings(
         ChatModels.TryEndpoint(ServerUrl, Protocol, out address);
 
     /// <summary>The model these settings describe, or null when they describe none.</summary>
-    public IChatModel? CreateModel() =>
-        IsConfigured ? ChatModels.Create(Protocol, ServerUrl, Model) : null;
+    public IChatModel? CreateModel(string? vaultRoot = null) =>
+        IsConfigured ? ChatModels.Create(Protocol, ServerUrl, Model, vaultRoot) : null;
 
     public static string PathFor(string vaultRoot) => Path.Combine(vaultRoot, FileName);
 

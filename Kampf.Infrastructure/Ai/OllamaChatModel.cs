@@ -184,9 +184,36 @@ public static class ChatModels
         Create(ChatProtocol.Ollama, ollamaUrl, model);
 
     /// <summary>The model for one explicit configuration, or null when it is incomplete.</summary>
-    public static IChatModel? Create(ChatProtocol protocol, string? url, string? model)
+    public static IChatModel? Create(
+        ChatProtocol protocol,
+        string? url,
+        string? model,
+        string? vaultRoot = null)
     {
-        if (string.IsNullOrWhiteSpace(model) || !TryEndpoint(url, protocol, out var address))
+        if (string.IsNullOrWhiteSpace(model))
+            return null;
+
+        // A local model is a file in the vault, not a server: the "url" is the
+        // Hugging Face repository and the model is the .gguf file name.
+        if (protocol == ChatProtocol.Local)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return null;
+
+            try
+            {
+                var path = HuggingFaceModelStore.PathFor(vaultRoot ?? Vault.DefaultRootPath, url, model);
+                return File.Exists(path) ? new LocalChatModel(path, model.Trim()) : null;
+            }
+            catch (ArgumentException)
+            {
+                // A hand-edited or outdated chat-model.json must not stop the
+                // vault from opening; the app simply stays extractive.
+                return null;
+            }
+        }
+
+        if (!TryEndpoint(url, protocol, out var address))
             return null;
 
         return protocol == ChatProtocol.Ollama
@@ -202,7 +229,7 @@ public static class ChatModels
     {
         address = null!;
 
-        if (string.IsNullOrWhiteSpace(url))
+        if (protocol == ChatProtocol.Local || string.IsNullOrWhiteSpace(url))
             return false;
 
         var text = url.Trim().TrimEnd('/');

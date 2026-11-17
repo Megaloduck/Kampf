@@ -44,6 +44,19 @@ that do not need a sync transport: publishing, an Android head, and a measured
   turns it into a note anchored to the paper, labelled with the model that wrote
   it. With no local model configured the action explains what to set up instead
   of inventing a summary.
+- **A model the app runs itself** — LLM Configuration can download a GGUF model
+  straight from Hugging Face into `vault/models` and run it in-process
+  (llama.cpp through LLamaSharp): paste a repository and file —
+  `Qwen/Qwen2.5-0.5B-Instruct-GGUF` with
+  `qwen2.5-0.5b-instruct-q4_k_m.gguf` is prefilled — or a file URL from the
+  model page, then press *Download & use*. There is no server to install and no
+  hosted API; the download is the only network use, it shows progress, and it
+  resumes after an interruption. Above the fields, the page scans this machine
+  (cores and the RAM actually free) and sizes the typed GGUF — weights, the 4k
+  context cache and working memory — then says whether it fits and fills in the
+  largest bundled model that does. The model then answers Idea-Craft questions
+  and writes paper briefs. This needs the desktop host, which ships the native
+  runtime; the browser, iOS and Android builds do not.
 - **Publish** — Settings writes a static HTML copy of the vault into a folder you
   choose: an index, one page per note, a papers page carrying each citation and
   the notes taken from it, and a stylesheet. Wikilinks resolve to the published
@@ -165,7 +178,8 @@ Kampf.Application     services + ports: notes, import, graph, search, suggestion
                      note + paper-page embeddings, RAG chat, static publish
 Kampf.Infrastructure  SQLite/FTS5 repository, SQLCipher encryption, markdown
                      mirror, PdfPig extraction, PDFium page rendering,
-                     embeddings (hashing or Ollama)
+                     embeddings (hashing or Ollama), Hugging Face download +
+                     in-process GGUF inference (LLamaSharp)
 Kampf                 Avalonia UI: view models, graph canvas, markdown preview
 Kampf.Desktop         desktop host
 tests/*               domain rules, application services, SQLite + PDF round trips
@@ -179,7 +193,7 @@ can be tested with in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 160 tests across four projects
+dotnet test                      # 200 tests across four projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux. The Android
@@ -207,6 +221,7 @@ Kampf/
   assets/           imported PDFs
   backups/          kampf-<timestamp>.db taken before every encryption change
   chat-model.json   the local model chosen in Settings (server URL, model, protocol)
+  models/           GGUF weights downloaded from Hugging Face, one folder per repository
 ```
 
 Set `KAMPF_VAULT` to use a different folder (portable vault or a second vault).
@@ -241,6 +256,7 @@ The chat model is separate, and either backend works locally:
 | --- | --- | --- |
 | OpenAI-compatible | LLM Configuration, or `KAMPF_CHAT_URL` + `KAMPF_CHAT_MODEL` | Any local OpenAI-shaped server (LM Studio, llama.cpp, vLLM). The URL is the API root; `/v1` is added when omitted. |
 | `ollama:<model>` | LLM Configuration (tick *Ollama*), or `KAMPF_OLLAMA_URL` + `KAMPF_CHAT_MODEL` | e.g. `http://localhost:11434` with `llama3.2`. |
+| `local:<file>.gguf` | LLM Configuration → *Download from Hugging Face* | The GGUF is saved in the vault and run by the app with llama.cpp. Default: `Qwen/Qwen2.5-0.5B-Instruct-GGUF`, `qwen2.5-0.5b-instruct-q4_k_m.gguf`. |
 
 LLM Configuration is the normal way to set this: paste the server URL, press
 *Detect models* to list exactly what it serves (picking the id instead of typing
