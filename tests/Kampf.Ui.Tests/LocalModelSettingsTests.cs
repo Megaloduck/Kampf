@@ -138,6 +138,36 @@ public sealed class LocalModelSettingsTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Editing_the_repository_or_file_withdraws_the_old_fit()
+    {
+        var root = Path.Combine(_root, "vault");
+        var vault = await Vault.OpenAsync(root);
+        var viewModel = new MainViewModel(vault);
+
+        viewModel.HuggingFaceRepo = "owner/sized-slm";
+        viewModel.HuggingFaceFile = "sized-slm.gguf";
+
+        var path = HuggingFaceModelStore.PathFor(root, viewModel.HuggingFaceRepo, viewModel.HuggingFaceFile);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, new byte[2048]);
+
+        await viewModel.EstimateModelFitCommand.ExecuteAsync(null);
+        Assert.True(viewModel.HasModelFitSummary);
+
+        viewModel.HuggingFaceRepo = "owner/another-slm";
+        Assert.False(viewModel.HasModelFitSummary);
+        Assert.Empty(viewModel.ModelFitSummary);
+
+        viewModel.HuggingFaceRepo = "owner/sized-slm";
+        await viewModel.EstimateModelFitCommand.ExecuteAsync(null);
+        Assert.True(viewModel.HasModelFitSummary);
+
+        viewModel.HuggingFaceFile = "another-slm.gguf";
+        Assert.False(viewModel.HasModelFitSummary);
+        Assert.Empty(viewModel.ModelFitSummary);
+    }
+
+    [AvaloniaFact]
     public async Task A_repository_that_is_not_owner_slash_name_is_refused_before_downloading()
     {
         var root = Path.Combine(_root, "vault");

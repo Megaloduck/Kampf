@@ -1,3 +1,4 @@
+using System.Net;
 using Kampf.Infrastructure.Ai;
 using Xunit;
 
@@ -94,6 +95,27 @@ public sealed class HuggingFaceModelTests : IDisposable
     }
 
     [Fact]
+    public async Task A_cancelled_download_keeps_its_partial_file_for_resuming()
+    {
+        var reference = new HuggingFaceModelReference("owner/cancelled", "weights.gguf");
+        using var cts = new CancellationTokenSource();
+
+        // The response produces one chunk, then stalls until the caller cancels.
+        using var store = new HuggingFaceModelStore(_root, new StreamingHandler());
+        cts.CancelAfter(TimeSpan.FromMilliseconds(250));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            store.DownloadAsync(reference, progress: null, cts.Token));
+
+        var destination = store.PathFor(reference);
+        var partial = destination + ".part";
+
+        Assert.False(File.Exists(destination));
+        Assert.True(File.Exists(partial));
+        Assert.True(new FileInfo(partial).Length > 0);
+    }
+
+    [Fact]
     public void A_download_is_kept_under_the_owners_folder_so_names_cannot_collide()
     {
         var first = HuggingFaceModelStore.PathFor(_root, "owner/model-a", "weights.gguf");
@@ -103,5 +125,78 @@ public sealed class HuggingFaceModelTests : IDisposable
         Assert.StartsWith(
             Path.GetFullPath(HuggingFaceModelStore.ModelsDirectory(_root)),
             Path.GetFullPath(first));
+    }
+
+    private sealed class StreamingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamingContent(),
+            };
+            response.Content.Headers.ContentLength = 1024;
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class StreamingContent : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new NotSupportedException();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 1024;
+            return true;
+        }
+
+        protected override Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<Stream>(new StallingStream());
+    }
+
+    private sealed class StallingStream : Stream
+    {
+        private int _reads;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _reads) == 1)
+            {
+                buffer.Span[..Math.Min(16, buffer.Length)].Fill(0x2A);
+                return ValueTask.FromResult(16);
+            }
+
+            return new ValueTask<int>(WaitForCancelAsync(cancellationToken));
+        }
+
+        private static async Task<int> WaitForCancelAsync(CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
     }
 }

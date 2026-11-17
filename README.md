@@ -193,7 +193,7 @@ can be tested with in-memory fakes and later reused by other hosts.
 
 ```bash
 dotnet run --project Kampf.Desktop
-dotnet test                      # 200 tests across four projects
+dotnet test                      # 202 tests across four projects
 ```
 
 Requires the .NET 9 SDK. The desktop app targets Windows/macOS/Linux. The Android

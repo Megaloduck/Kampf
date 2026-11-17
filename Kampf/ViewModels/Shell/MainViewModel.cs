@@ -104,6 +104,15 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>True when chat-model.json names a downloaded model to run.</summary>
     private readonly bool _hasSavedLocalModel;
 
+    /// <summary>The fit scan that is running, so a newer scan can cancel it.</summary>
+    private CancellationTokenSource? _fitCts;
+
+    /// <summary>Increments per scan so a superseded scan cannot publish its result.</summary>
+    private int _fitGeneration;
+
+    /// <summary>The download that is running; cancelling it keeps the .part file.</summary>
+    private CancellationTokenSource? _downloadCts;
+
     /// <summary>File sizes already read from Hugging Face, so revisiting the page is instant.</summary>
     private readonly Dictionary<string, long> _modelSizeCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -720,6 +729,19 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasModelFitSummary => ModelFitSummary.Length > 0;
 
+    // An edited repository or file makes the old answer wrong: withdraw it and
+    // stop a scan that is still measuring the previous model.
+    partial void OnHuggingFaceRepoChanged(string value) => ClearModelFit();
+
+    partial void OnHuggingFaceFileChanged(string value) => ClearModelFit();
+
+    private void ClearModelFit()
+    {
+        _fitGeneration++;
+        _fitCts?.Cancel();
+        ModelFitSummary = string.Empty;
+    }
+
     /// <summary>The largest bundled model that fits this machine.</summary>
     [ObservableProperty] private string _modelRecommendation = string.Empty;
 
@@ -739,23 +761,32 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task EstimateModelFitAsync()
     {
-        Hardware = HardwareProbe.Detect();
-        RefreshRecommendation();
+        // A newer scan supersedes this one: cancel its request and make sure its
+        // late result can never overwrite the newer summary.
+        var generation = ++_fitGeneration;
+        _fitCts?.Cancel();
 
-        if (!HuggingFaceModelReference.TryParse(
-                HuggingFaceRepo,
-                HuggingFaceFile,
-                out var reference,
-                out var error))
-        {
-            ModelFitSummary = error ?? "Name a GGUF file to size it.";
-            return;
-        }
-
-        ModelFitSummary = "Measuring the model\u2026";
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+        _fitCts = cts;
 
         try
         {
+            Hardware = HardwareProbe.Detect();
+            RefreshRecommendation();
+
+            if (!HuggingFaceModelReference.TryParse(
+                    HuggingFaceRepo,
+                    HuggingFaceFile,
+                    out var reference,
+                    out var error))
+            {
+                ModelFitSummary = error ?? "Name a GGUF file to size it.";
+                return;
+            }
+
+            ModelFitSummary = "Measuring the model\u2026";
+
             long size;
             var key = reference.DownloadUri.ToString();
 
@@ -772,23 +803,43 @@ public partial class MainViewModel : ViewModelBase
             }
             else
             {
-                // A page visit must not hang on a slow network.
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                // A page visit must not hang on a slow network, but a newer scan
+                // must be able to cancel this one immediately.
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+                timeout.CancelAfter(TimeSpan.FromSeconds(12));
                 size = await store.GetSizeAsync(reference, timeout.Token);
                 _modelSizeCache[key] = size;
             }
 
+            if (generation != _fitGeneration || token.IsCancellationRequested)
+                return;
+
             var fit = ModelSizing.Estimate(size, Hardware.AvailableMemoryBytes);
             ModelFitSummary = $"{reference.FileName}: {fit.Describe()}.";
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // A newer scan or an edit owns the summary now; say nothing.
+        }
         catch (OperationCanceledException)
         {
-            ModelFitSummary =
-                "Hugging Face did not answer in time \u2014 the size will be known once the file is downloaded.";
+            if (generation == _fitGeneration)
+            {
+                ModelFitSummary =
+                    "Hugging Face did not answer in time \u2014 the size will be known once the file is downloaded.";
+            }
         }
         catch (Exception ex)
         {
-            ModelFitSummary = "Could not size the model: " + ex.Message;
+            if (generation == _fitGeneration)
+                ModelFitSummary = "Could not size the model: " + ex.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_fitCts, cts))
+                _fitCts = null;
+
+            cts.Dispose();
         }
     }
 
@@ -829,6 +880,8 @@ public partial class MainViewModel : ViewModelBase
         IsDownloadingModel = true;
         HuggingFaceStatus = "Contacting huggingface.co\u2026";
 
+        var cts = new CancellationTokenSource();
+        _downloadCts = cts;
         var downloadFinished = false;
 
         try
@@ -836,13 +889,13 @@ public partial class MainViewModel : ViewModelBase
             using var store = new HuggingFaceModelStore(_vault.RootPath);
             var progress = new Progress<ModelDownloadProgress>(update =>
             {
-                // A report queued just before completion must not replace the
-                // "Ready" line with a stale percentage.
-                if (!downloadFinished)
+                // A report queued just before completion or cancellation must
+                // not replace the final line with a stale percentage.
+                if (!downloadFinished && !cts.IsCancellationRequested)
                     HuggingFaceStatus = $"Downloading {reference.FileName} \u2014 {update.Describe()}";
             });
 
-            var path = await store.DownloadAsync(reference, progress);
+            var path = await store.DownloadAsync(reference, progress, cts.Token);
             downloadFinished = true;
 
             var settings = new ChatModelSettings(reference.RepoId, reference.FileName, ChatProtocol.Local);
@@ -860,16 +913,38 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            HuggingFaceStatus = "Download cancelled. The partial file is kept, so trying again resumes it.";
+            downloadFinished = true;
+            HuggingFaceStatus =
+                "Download cancelled. The partial file is kept, so Download & use resumes it.";
         }
         catch (Exception ex)
         {
+            downloadFinished = true;
             HuggingFaceStatus = "Download failed: " + ex.Message;
         }
         finally
         {
             IsDownloadingModel = false;
+
+            if (ReferenceEquals(_downloadCts, cts))
+                _downloadCts = null;
+
+            cts.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Stops the running download. The store leaves its <c>.part</c> file in the
+    /// vault, so the next Download &amp; use carries on from where this stopped.
+    /// </summary>
+    [RelayCommand]
+    private void CancelDownload()
+    {
+        if (!IsDownloadingModel)
+            return;
+
+        HuggingFaceStatus = "Cancelling \u2014 the partial file will be kept for the next attempt.";
+        _downloadCts?.Cancel();
     }
 
     /// <summary>The models the last Detect found, so the exact id can be picked.</summary>
