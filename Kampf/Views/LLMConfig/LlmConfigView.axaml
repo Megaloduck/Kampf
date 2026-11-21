@@ -28,7 +28,7 @@
                     </StackPanel>
                     <TextBlock Text="Everything on this page runs on this machine. Pick what answers: a model the app downloads and runs itself, or a local server."
                                Classes="meta"
-                               FontSize="10.5"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
@@ -44,7 +44,7 @@
                     <StackPanel Spacing="2">
                         <TextBlock Text="ANSWERING" Classes="section" FontSize="8.5"/>
                         <TextBlock Text="{Binding ChatModelLabel}"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    MaxWidth="270"
                                    TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
@@ -69,7 +69,7 @@
                             <Button Grid.Column="1"
                                     Classes="ghost"
                                     Padding="12,4"
-                                    FontSize="10.5"
+                                    FontSize="12"
                                     Command="{Binding EstimateModelFitCommand}"
                                     ToolTip.Tip="Scan memory again and size the model named below">
                                 <TextBlock Text="Scan again"/>
@@ -81,20 +81,20 @@
                                 <TextBlock Text="{Binding HardwareCores}"
                                            FontSize="22"
                                            FontWeight="SemiBold"/>
-                                <TextBlock Text="LOGICAL CORES" Classes="meta" FontSize="9"/>
+                                <TextBlock Text="LOGICAL CORES" Classes="meta" FontSize="11"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="3">
                                 <TextBlock Text="{Binding HardwareMemory}"
                                            FontSize="22"
                                            FontWeight="SemiBold"/>
-                                <TextBlock Text="TOTAL MEMORY" Classes="meta" FontSize="9"/>
+                                <TextBlock Text="TOTAL MEMORY" Classes="meta" FontSize="11"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="3">
                                 <TextBlock Text="{Binding HardwareFreeMemory}"
                                            FontSize="22"
                                            FontWeight="SemiBold"
                                            ToolTip.Tip="Memory the operating system reports as free right now"/>
-                                <TextBlock Text="FREE NOW" Classes="meta" FontSize="9"/>
+                                <TextBlock Text="FREE NOW" Classes="meta" FontSize="11"/>
                             </StackPanel>
                         </Grid>
 
@@ -106,23 +106,23 @@
                                 CornerRadius="8"
                                 Padding="12,10">
                             <StackPanel Spacing="5">
-                                <TextBlock Text="MODEL FIT" Classes="section" FontSize="9"/>
+                                <TextBlock Text="MODEL FIT" Classes="section" FontSize="11"/>
 
                                 <TextBlock Text="{Binding ModelFitSummary}"
                                            IsVisible="{Binding HasModelFitSummary}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            TextWrapping="Wrap"
                                            LineHeight="17"/>
 
                                 <TextBlock Text="Press Scan again to size the model named below."
                                            IsVisible="{Binding !HasModelFitSummary}"
                                            Classes="meta"
-                                           FontSize="10.5"
+                                           FontSize="12"
                                            TextWrapping="Wrap"/>
 
                                 <TextBlock Text="{Binding ModelRecommendation}"
                                            Classes="meta"
-                                           FontSize="10.5"
+                                           FontSize="12"
                                            TextWrapping="Wrap"
                                            LineHeight="16"/>
                             </StackPanel>
@@ -130,7 +130,7 @@
 
                         <Button Classes="primary"
                                 Padding="14,5"
-                                FontSize="11"
+                                FontSize="12"
                                 HorizontalAlignment="Left"
                                 Command="{Binding UseRecommendedModelCommand}"
                                 ToolTip.Tip="Fill in the model this machine can run well">
@@ -155,20 +155,20 @@
                             <TextBlock Text="RUN A MODEL HERE" Classes="section"/>
                             <TextBlock Text="Downloads a GGUF from Hugging Face into the vault and runs it inside this app."
                                        Classes="meta"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"
                                        LineHeight="16"/>
 
-                            <TextBlock Text="Repository" FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Text="Repository" FontSize="12" Margin="0,4,0,0"/>
                             <TextBox Text="{Binding HuggingFaceRepo, Mode=TwoWay}"
                                      Watermark="Insert HuggingFace Repository link"
-                                     FontSize="11.5"
+                                     FontSize="12"
                                      Padding="8,6"/>
 
-                            <TextBlock Text="GGUF file" FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Text="GGUF file" FontSize="12" Margin="0,4,0,0"/>
                             <TextBox Text="{Binding HuggingFaceFile, Mode=TwoWay}"
                                      Watermark="Insert GGUF file"
-                                     FontSize="11.5"
+                                     FontSize="12"
                                      Padding="8,6"/>
 
                             <StackPanel Orientation="Horizontal"
@@ -176,14 +176,14 @@
                                         Margin="0,4,0,0">
                                 <Button Classes="primary"
                                         Padding="14,5"
-                                        FontSize="11"
+                                        FontSize="12"
                                         IsEnabled="{Binding !IsDownloadingModel}"
                                         Command="{Binding DownloadHuggingFaceModelCommand}">
                                     <TextBlock Text="Download &amp; use"/>
                                 </Button>
                                 <Button Classes="ghost"
                                         Padding="12,5"
-                                        FontSize="11"
+                                        FontSize="12"
                                         IsVisible="{Binding IsDownloadingModel}"
                                         Command="{Binding CancelDownloadCommand}"
                                         ToolTip.Tip="Stop now; the partial file is kept so the download can resume">
@@ -194,13 +194,13 @@
                             <TextBlock Text="{Binding HuggingFaceStatus}"
                                        IsVisible="{Binding HasHuggingFaceStatus}"
                                        Classes="meta"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"
                                        LineHeight="16"/>
 
                             <TextBlock Text="A repository and file, or a file URL copied from the model page. Downloads resume after an interruption."
                                        Classes="meta"
-                                       FontSize="9.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -217,38 +217,38 @@
                             <TextBlock Text="CONNECT A LOCAL SERVER" Classes="section"/>
                             <TextBlock Text="LM Studio, llama.cpp or Ollama already running on this machine."
                                        Classes="meta"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"
                                        LineHeight="16"/>
 
-                            <TextBlock Text="Server URL" FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Text="Server URL" FontSize="12" Margin="0,4,0,0"/>
                             <TextBox Text="{Binding ChatServerUrl, Mode=TwoWay}"
                                      Watermark="http://localhost:1234/v1"
-                                     FontSize="11.5"
+                                     FontSize="12"
                                      Padding="8,6"/>
 
-                            <TextBlock Text="Model" FontSize="11" Margin="0,4,0,0"/>
+                            <TextBlock Text="Model" FontSize="12" Margin="0,4,0,0"/>
                             <TextBox Text="{Binding ChatModelName, Mode=TwoWay}"
                                      Watermark="model the server serves"
-                                     FontSize="11.5"
+                                     FontSize="12"
                                      Padding="8,6"/>
 
                             <CheckBox Content="This is an Ollama server"
                                       IsChecked="{Binding ChatUsesOllama, Mode=TwoWay}"
-                                      FontSize="10.5"
+                                      FontSize="12"
                                       ToolTip.Tip="The URL then stays as typed, e.g. http://localhost:11434"/>
 
                             <WrapPanel Orientation="Horizontal" Margin="0,2,0,0">
                                 <Button Classes="primary"
                                         Padding="12,5"
-                                        FontSize="10.5"
+                                        FontSize="12"
                                         Margin="0,0,8,6"
                                         Command="{Binding ApplyChatModelCommand}">
                                     <TextBlock Text="Apply"/>
                                 </Button>
                                 <Button Classes="ghost"
                                         Padding="10,5"
-                                        FontSize="10.5"
+                                        FontSize="12"
                                         Margin="0,0,8,6"
                                         Command="{Binding DetectChatModelsCommand}"
                                         ToolTip.Tip="Ask the server which models it serves">
@@ -256,7 +256,7 @@
                                 </Button>
                                 <Button Classes="ghost"
                                         Padding="10,5"
-                                        FontSize="10.5"
+                                        FontSize="12"
                                         Margin="0,0,8,6"
                                         Command="{Binding CheckChatModelCommand}"
                                         ToolTip.Tip="Check that the configured model is reachable">
@@ -264,7 +264,7 @@
                                 </Button>
                                 <Button Classes="ghost"
                                         Padding="10,5"
-                                        FontSize="10.5"
+                                        FontSize="12"
                                         Margin="0,0,8,6"
                                         Command="{Binding ClearChatModelCommand}"
                                         ToolTip.Tip="Forget the server and answer with the cited passages">
@@ -285,7 +285,7 @@
                                                 Margin="0,0,12,4"
                                                 Command="{Binding UseCommand}"
                                                 ToolTip.Tip="Use this model">
-                                            <TextBlock Text="{Binding Name}" FontSize="10.5"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="12"/>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -294,7 +294,7 @@
                             <TextBlock Text="{Binding ChatModelHealth}"
                                        IsVisible="{Binding HasChatModelHealth}"
                                        Classes="meta"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"
                                        LineHeight="16"/>
                         </StackPanel>
@@ -309,23 +309,23 @@
                         CornerRadius="10"
                         Padding="18,14">
                     <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto">
-                        <TextBlock Text="EMBEDDINGS" Classes="section" FontSize="9" VerticalAlignment="Center"/>
+                        <TextBlock Text="EMBEDDINGS" Classes="section" FontSize="11" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding EmbeddingLabel}"
                                    Classes="meta"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    TextWrapping="Wrap"/>
                         <TextBlock Grid.Row="1"
                                    Text="ANSWERING"
                                    Classes="section"
-                                   FontSize="9"
+                                   FontSize="11"
                                    Margin="0,6,0,0"
                                    VerticalAlignment="Center"/>
                         <TextBlock Grid.Row="1"
                                    Grid.Column="1"
                                    Text="{Binding ChatModelLabel}"
                                    Classes="meta"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    Margin="0,6,0,0"
                                    TextWrapping="Wrap"/>
                     </Grid>
@@ -333,7 +333,7 @@
 
                 <TextBlock Text="Downloaded weights live in the vault's models folder and are the only network use on this page. Server fields fall back to KAMPF_CHAT_URL / KAMPF_OLLAMA_URL when empty; embeddings use KAMPF_EMBEDDING_MODEL."
                            Classes="meta"
-                           FontSize="10"
+                           FontSize="12"
                            TextWrapping="Wrap"
                            LineHeight="16"/>
             </StackPanel>

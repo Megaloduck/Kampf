@@ -16,11 +16,34 @@ public partial class MainView : UserControl
 {
     private MainViewModel? _bound;
 
+    /// <summary>One side panel at a time below this width; the workspace stays readable.</summary>
+    private const double CompactWidth = 1180;
+
+    private static readonly GridLength PanelSplitterWidth = new(6);
+    private GridLength _navigatorWidth = new(284);
+    private GridLength _reviewWidth = new(344);
+
+    private bool _compact;
+    private bool _focusMode;
+    private bool _navigatorBeforeFocus;
+    private bool _reviewBeforeFocus;
+
+    // Column definitions get no generated fields, so address them by index:
+    // 0 rail, 1 navigator, 2 splitter, 3 workspace, 4 splitter, 5 review queue.
+    private ColumnDefinition NavigatorColumn => RootLayout.ColumnDefinitions[1];
+    private ColumnDefinition NavigatorSplitterColumn => RootLayout.ColumnDefinitions[2];
+    private ColumnDefinition ReviewSplitterColumn => RootLayout.ColumnDefinitions[4];
+    private ColumnDefinition ReviewColumn => RootLayout.ColumnDefinitions[5];
+
+    private bool IsNavigatorVisible => NavigatorColumn.Width.Value > 0;
+    private bool IsReviewVisible => ReviewColumn.Width.Value > 0;
+
     public MainView()
     {
         InitializeComponent();
 
         DataContextChanged += OnDataContextChanged;
+        SizeChanged += OnRootSizeChanged;
 
         // Undo and redo live in the header, so they follow the editor's history.
         NoteEditor.HistoryChanged += (_, _) => UpdateHistoryButtons();
@@ -65,81 +88,145 @@ public partial class MainView : UserControl
 
     // --------------------------------------------------------- panel layout
 
-    private static readonly GridLength PanelSplitterWidth = new(6);
-    private GridLength _navigatorWidth = new(268);
-    private GridLength _reviewWidth = new(330);
+    /// <summary>
+    /// Narrow windows get one contextual side panel rather than two fixed ones:
+    /// at 1024 px the two panels and the rail would leave roughly 360 px for the
+    /// note, the reader and the graph.
+    /// </summary>
+    private void OnRootSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        var width = Bounds.Width;
+        if (width <= 0)
+            return;
 
-    // Column definitions get no generated fields, so address them by index:
-    // 0 rail, 1 navigator, 2 splitter, 3 workspace, 4 splitter, 5 review queue.
-    private ColumnDefinition NavigatorColumn => RootLayout.ColumnDefinitions[1];
-    private ColumnDefinition NavigatorSplitterColumn => RootLayout.ColumnDefinitions[2];
-    private ColumnDefinition ReviewSplitterColumn => RootLayout.ColumnDefinitions[4];
-    private ColumnDefinition ReviewColumn => RootLayout.ColumnDefinitions[5];
+        var compact = width < CompactWidth;
+        if (compact == _compact)
+            return;
+
+        _compact = compact;
+
+        if (compact && !_focusMode && IsReviewVisible)
+            SetReviewVisible(false);
+
+        UpdatePanelButtons();
+    }
 
     private void OnToggleNavigatorClick(object? sender, RoutedEventArgs e)
     {
-        var hidden = NavigatorColumn.Width.Value <= 0;
+        var show = !IsNavigatorVisible;
 
-        if (hidden)
-        {
-            NavigatorColumn.Width = _navigatorWidth;
-            NavigatorSplitterColumn.Width = PanelSplitterWidth;
-            NavigatorPanel.IsVisible = true;
-        }
-        else
-        {
-            _navigatorWidth = new GridLength(Math.Max(NavigatorColumn.ActualWidth, 200));
-            NavigatorPanel.IsVisible = false;
-            NavigatorColumn.Width = new GridLength(0);
-            NavigatorSplitterColumn.Width = new GridLength(0);
-        }
+        if (show && _compact && IsReviewVisible)
+            SetReviewVisible(false);
 
+        SetNavigatorVisible(show);
         UpdatePanelButtons();
     }
 
     private void OnToggleReviewClick(object? sender, RoutedEventArgs e)
     {
-        var hidden = ReviewColumn.Width.Value <= 0;
+        var show = !IsReviewVisible;
 
-        if (hidden)
+        if (show && _compact && IsNavigatorVisible)
+            SetNavigatorVisible(false);
+
+        SetReviewVisible(show);
+        UpdatePanelButtons();
+    }
+
+    public void ToggleFocusMode()
+    {
+        _focusMode = !_focusMode;
+
+        if (_focusMode)
         {
-            ReviewColumn.Width = _reviewWidth;
-            ReviewSplitterColumn.Width = PanelSplitterWidth;
-            ReviewPanel.IsVisible = true;
+            _navigatorBeforeFocus = IsNavigatorVisible;
+            _reviewBeforeFocus = IsReviewVisible;
+            SetNavigatorVisible(false);
+            SetReviewVisible(false);
         }
         else
         {
-            _reviewWidth = new GridLength(Math.Max(ReviewColumn.ActualWidth, 240));
-            ReviewPanel.IsVisible = false;
-            ReviewColumn.Width = new GridLength(0);
-            ReviewSplitterColumn.Width = new GridLength(0);
+            SetNavigatorVisible(_navigatorBeforeFocus);
+            SetReviewVisible(_reviewBeforeFocus && (!_compact || !IsNavigatorVisible));
         }
 
         UpdatePanelButtons();
     }
 
+    private void OnToggleFocusClick(object? sender, RoutedEventArgs e) => ToggleFocusMode();
+
+    private void SetNavigatorVisible(bool visible)
+    {
+        if (visible)
+        {
+            NavigatorColumn.Width = _navigatorWidth;
+            NavigatorSplitterColumn.Width = PanelSplitterWidth;
+            NavigatorPanel.IsVisible = true;
+            return;
+        }
+
+        if (NavigatorColumn.ActualWidth > 0)
+            _navigatorWidth = new GridLength(Math.Max(NavigatorColumn.ActualWidth, 200));
+
+        NavigatorPanel.IsVisible = false;
+        NavigatorColumn.Width = new GridLength(0);
+        NavigatorSplitterColumn.Width = new GridLength(0);
+    }
+
+    private void SetReviewVisible(bool visible)
+    {
+        if (visible)
+        {
+            ReviewColumn.Width = _reviewWidth;
+            ReviewSplitterColumn.Width = PanelSplitterWidth;
+            ReviewPanel.IsVisible = true;
+            return;
+        }
+
+        if (ReviewColumn.ActualWidth > 0)
+            _reviewWidth = new GridLength(Math.Max(ReviewColumn.ActualWidth, 240));
+
+        ReviewPanel.IsVisible = false;
+        ReviewColumn.Width = new GridLength(0);
+        ReviewSplitterColumn.Width = new GridLength(0);
+    }
+
     private void UpdatePanelButtons()
     {
-        var navigatorHidden = NavigatorColumn.Width.Value <= 0;
+        var navigatorHidden = !IsNavigatorVisible;
         NavigatorToggleIcon.Text = navigatorHidden ? Symbols.LeftPanelOpen : Symbols.LeftPanelClose;
         ToolTip.SetTip(NavigatorToggleButton, navigatorHidden ? "Show the navigator" : "Hide the navigator");
 
-        var reviewHidden = ReviewColumn.Width.Value <= 0;
+        var reviewHidden = !IsReviewVisible;
         ReviewToggleIcon.Text = reviewHidden ? Symbols.RightPanelOpen : Symbols.RightPanelClose;
         ToolTip.SetTip(ReviewToggleButton, reviewHidden ? "Show the review queue" : "Hide the review queue");
+
+        FocusToggleIcon.Text = _focusMode ? Symbols.FullscreenExit : Symbols.Fullscreen;
+        ToolTip.SetTip(FocusToggleButton, _focusMode ? "Leave focus mode" : "Focus mode (Ctrl+Shift+F)");
     }
 
     // ------------------------------------------------------------ undo / redo
 
-    private void OnUndoClick(object? sender, RoutedEventArgs e) => NoteEditor.Undo();
+    private void OnUndoClick(object? sender, RoutedEventArgs e)
+    {
+        NoteEditor.Undo();
+        UpdateHistoryButtons();
+    }
 
-    private void OnRedoClick(object? sender, RoutedEventArgs e) => NoteEditor.Redo();
+    private void OnRedoClick(object? sender, RoutedEventArgs e)
+    {
+        NoteEditor.Redo();
+        UpdateHistoryButtons();
+    }
 
     private void UpdateHistoryButtons()
     {
         // The buttons live in the window header, so they only mean something
         // while a note is loaded into the editor.
         var hasNote = _bound?.HasActiveNote == true;
+
+        UndoButton.IsEnabled = hasNote && NoteEditor.CanUndo;
+        RedoButton.IsEnabled = hasNote && NoteEditor.CanRedo;
     }
 
     // ---------------------------------------------------- drag and drop import
@@ -187,8 +274,14 @@ public partial class MainView : UserControl
     public void FocusSearch()
     {
         // A collapsed navigator would take the focus with it.
-        if (NavigatorColumn.Width.Value <= 0)
-            OnToggleNavigatorClick(null, new RoutedEventArgs());
+        if (_focusMode)
+            ToggleFocusMode();
+
+        if (!IsNavigatorVisible)
+        {
+            SetNavigatorVisible(true);
+            UpdatePanelButtons();
+        }
 
         NavigatorPanel.FocusSearch();
     }

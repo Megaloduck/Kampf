@@ -10,6 +10,7 @@
         <Button x:Name="MinimizeButton"
                 Classes="caption"
                 Click="OnMinimizeClick"
+                AutomationProperties.Name="Minimize"
                 ToolTip.Tip="Minimize">
             <TextBlock Classes="icon"
                        FontSize="16"
@@ -19,6 +20,7 @@
         <Button x:Name="MaximizeButton"
                 Classes="caption"
                 Click="OnMaximizeClick"
+                AutomationProperties.Name="Maximize or restore"
                 ToolTip.Tip="Maximize">
             <Panel>
                 <TextBlock x:Name="MaximizeIcon"
@@ -35,6 +37,7 @@
 
         <Button Classes="caption close"
                 Click="OnCloseClick"
+                AutomationProperties.Name="Close"
                 ToolTip.Tip="Close">
             <TextBlock Classes="icon"
                        FontSize="16"

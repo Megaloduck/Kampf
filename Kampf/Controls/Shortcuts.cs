@@ -19,6 +19,7 @@ public enum ShortcutAction
     ShowChat,
     ShowSettings,
     ToggleTheme,
+    ToggleFocus,
     Dismiss,
 }
 
@@ -44,6 +45,7 @@ public sealed class ShortcutMap
         new(ShortcutAction.ImportPdf, Key.O, KeyModifiers.Control),
         new(ShortcutAction.FocusSearch, Key.F, KeyModifiers.Control),
         new(ShortcutAction.ToggleTheme, Key.T, KeyModifiers.Control),
+        new(ShortcutAction.ToggleFocus, Key.F, KeyModifiers.Control | KeyModifiers.Shift),
         new(ShortcutAction.ShowGraph, Key.D1, KeyModifiers.Control),
         new(ShortcutAction.ShowEditor, Key.D2, KeyModifiers.Control),
         new(ShortcutAction.ShowReader, Key.D3, KeyModifiers.Control),

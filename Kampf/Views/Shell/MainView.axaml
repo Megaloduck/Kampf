@@ -12,8 +12,8 @@
 
     <!-- rail | navigator | splitter | workspace | splitter | review queue -->
     <Grid x:Name="RootLayout"
-          RowDefinitions="Auto,*"
-          ColumnDefinitions="Auto,268,6,*,6,330">
+          RowDefinitions="Auto,*,Auto"
+          ColumnDefinitions="Auto,284,6,*,6,344">
 
         <!-- ============================================================ header -->
         <Border x:Name="HeaderBar"
@@ -53,7 +53,7 @@
                             Padding="7,2"
                             VerticalAlignment="Center">
                         <TextBlock Text="LOCAL VAULT"
-                                   FontSize="9"
+                                   FontSize="11"
                                    LetterSpacing="1.1"
                                    Foreground="{DynamicResource FaintBrush}"/>
                     </Border>
@@ -62,18 +62,38 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="Working..."
                                Classes="meta"
-                               FontSize="10.5"
+                               FontSize="12"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"
                                IsVisible="{Binding IsBusy}"/>
 
-                   
+                    <Button x:Name="UndoButton"
+                            Classes="ghost iconButton"
+                            Click="OnUndoClick"
+                            IsEnabled="False"
+                            AutomationProperties.Name="Undo"
+                            ToolTip.Tip="Undo (Ctrl+Z)">
+                        <TextBlock Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.Undo}"/>
+                    </Button>
+                    <Button x:Name="RedoButton"
+                            Classes="ghost iconButton"
+                            Click="OnRedoClick"
+                            IsEnabled="False"
+                            AutomationProperties.Name="Redo"
+                            ToolTip.Tip="Redo (Ctrl+Y)">
+                        <TextBlock Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.Redo}"/>
+                    </Button>
 
                     <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
 
                     <Button x:Name="NavigatorToggleButton"
                             Classes="ghost iconButton"
                             Click="OnToggleNavigatorClick"
+                            AutomationProperties.Name="Toggle the navigator"
                             ToolTip.Tip="Hide the navigator">
                         <TextBlock x:Name="NavigatorToggleIcon"
                                    Classes="icon"
@@ -83,17 +103,29 @@
                     <Button x:Name="ReviewToggleButton"
                             Classes="ghost iconButton"
                             Click="OnToggleReviewClick"
+                            AutomationProperties.Name="Toggle the review queue"
                             ToolTip.Tip="Hide the review queue">
                         <TextBlock x:Name="ReviewToggleIcon"
                                    Classes="icon"
                                    FontSize="18"
                                    Text="{x:Static controls:Symbols.RightPanelClose}"/>
                     </Button>
+                    <Button x:Name="FocusToggleButton"
+                            Classes="ghost iconButton"
+                            Click="OnToggleFocusClick"
+                            AutomationProperties.Name="Focus mode"
+                            ToolTip.Tip="Focus mode (Ctrl+Shift+F)">
+                        <TextBlock x:Name="FocusToggleIcon"
+                                   Classes="icon"
+                                   FontSize="18"
+                                   Text="{x:Static controls:Symbols.Fullscreen}"/>
+                    </Button>
 
                     <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource BorderBrush}"/>
                     
                     <Button Classes="ghost iconButton"
                             Command="{Binding ToggleThemeCommand}"
+                            AutomationProperties.Name="{Binding ThemeButtonLabel}"
                             ToolTip.Tip="{Binding ThemeButtonLabel}">
                         <Panel>
                             <TextBlock Classes="icon"
@@ -174,7 +206,6 @@
                 </StackPanel>
             </Border>
 
-            <views:ExtensionView/>
             <views:TrashView/>
 
             <views:NoteView x:Name="NoteEditor"/>
@@ -208,17 +239,17 @@
                                 Padding="7,1"
                                 MinWidth="20">
                             <TextBlock Text="{Binding PendingCount}"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        HorizontalAlignment="Center"
                                        Foreground="{DynamicResource AccentBrush}"/>
                         </Border>
                     </Grid>
                     <TextBlock Text="Suggestions wait here. Nothing touches your graph until you accept it."
                                Classes="meta"
-                               FontSize="10.5"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                     <Button Classes="ghost"
-                            FontSize="11"
+                            FontSize="12"
                             Padding="10,4"
                             HorizontalAlignment="Left"
                             Command="{Binding SuggestConnectionsCommand}"
@@ -246,14 +277,14 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Text="{Binding KindLabel}"
                                                        Foreground="{DynamicResource AccentBrush}"
-                                                       FontSize="9.5"
+                                                       FontSize="12"
                                                        LetterSpacing="1"
                                                        FontWeight="SemiBold"
                                                        VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding AgeLabel}"
                                                        Classes="meta"
-                                                       FontSize="10"/>
+                                                       FontSize="12"/>
                                         </Grid>
                                         <TextBlock Text="{Binding Title}"
                                                    FontSize="12"
@@ -261,12 +292,12 @@
                                         <TextBlock Text="{Binding Detail}"
                                                    IsVisible="{Binding HasDetail}"
                                                    Classes="meta"
-                                                   FontSize="10.5"
+                                                   FontSize="12"
                                                    FontStyle="Italic"
                                                    TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <Button Classes="primary"
-                                                    FontSize="11"
+                                                    FontSize="12"
                                                     Padding="10,3"
                                                     Command="{Binding AcceptCommand}"
                                                     ToolTip.Tip="Accept this suggestion into the graph">
@@ -279,7 +310,7 @@
                                                 </StackPanel>
                                             </Button>
                                             <Button Classes="ghost"
-                                                    FontSize="11"
+                                                    FontSize="12"
                                                     Padding="10,3"
                                                     Command="{Binding RejectCommand}"
                                                     ToolTip.Tip="Reject this suggestion">
@@ -311,17 +342,17 @@
                                     <DataTemplate x:DataType="vm:AuditRowViewModel">
                                         <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
                                             <TextBlock Text="{Binding Action}"
-                                                       FontSize="10.5"
+                                                       FontSize="12"
                                                        Foreground="{DynamicResource SuccessBrush}"/>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Detail}"
-                                                       FontSize="10.5"
+                                                       FontSize="12"
                                                        Classes="muted"
                                                        Margin="6,0"
                                                        TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Grid.Column="2"
                                                        Text="{Binding TimeLabel}"
-                                                       FontSize="10"
+                                                       FontSize="12"
                                                        Foreground="{DynamicResource FaintBrush}"/>
                                         </Grid>
                                     </DataTemplate>
@@ -330,6 +361,29 @@
                         </ScrollViewer>
                     </Grid>
                 </Border>
+            </Grid>
+        </Border>
+
+        <!-- ============================================================ footer -->
+        <Border Grid.Row="2" Grid.ColumnSpan="6"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="14,7">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           Foreground="{DynamicResource MutedBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Classes="link"
+                        Margin="12,0,0,0"
+                        Content="{Binding StatusActionLabel}"
+                        Command="{Binding StatusActionCommand}"
+                        IsVisible="{Binding HasStatusAction}"
+                        AutomationProperties.Name="{Binding StatusActionLabel}"
+                        ToolTip.Tip="{Binding StatusActionLabel}"/>
             </Grid>
         </Border>
     </Grid>

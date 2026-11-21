@@ -9,7 +9,7 @@
          is in the vault any more — search, the graph and the navigator ignore it —
          so restoring is safe and emptying the bin is the only permanent delete. -->
     <Border IsVisible="{Binding IsTrashView}" Padding="32">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,*">
 
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,14">
                 <Border Width="38"
@@ -29,7 +29,7 @@
                     <TextBlock Text="TRASH BIN" Classes="section" LetterSpacing="2"/>
                     <TextBlock Text="{Binding TrashSummary}"
                                Classes="meta"
-                               FontSize="11"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
@@ -38,7 +38,7 @@
                         VerticalAlignment="Center"
                         IsVisible="{Binding HasTrash}"
                         Command="{Binding EmptyTrashCommand}"
-                        ToolTip.Tip="Delete everything in the bin for good">
+                        ToolTip.Tip="Delete everything in the bin (asks first)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Classes="icon"
                                    FontSize="16"
@@ -49,15 +49,7 @@
                 </Button>
             </Grid>
 
-            <TextBlock Grid.Row="1"
-                       Text="Click Empty trash again to confirm: everything in the bin is removed for good."
-                       Classes="meta"
-                       FontSize="10.5"
-                       Foreground="{DynamicResource WarnBrush}"
-                       Margin="0,0,0,10"
-                       IsVisible="{Binding ConfirmEmptyTrash}"/>
-
-            <ScrollViewer Grid.Row="2">
+            <ScrollViewer Grid.Row="1">
                 <ItemsControl ItemsSource="{Binding TrashRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:TrashRowViewModel">
@@ -81,19 +73,19 @@
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock Text="{Binding KindLabel}"
                                                        Classes="meta"
-                                                       FontSize="9"
+                                                       FontSize="11"
                                                        LetterSpacing="1"
                                                        VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding DeletedLabel}"
                                                        Classes="meta"
-                                                       FontSize="9.5"
+                                                       FontSize="12"
                                                        VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </StackPanel>
 
                                     <Button Grid.Column="2"
                                             Classes="ghost"
-                                            FontSize="11"
+                                            FontSize="12"
                                             Padding="10,3"
                                             Command="{Binding RestoreCommand}"
                                             ToolTip.Tip="Put this back in the vault">
@@ -107,17 +99,17 @@
 
                                     <Button Grid.Column="3"
                                             Classes="ghost danger"
-                                            FontSize="11"
+                                            FontSize="12"
                                             Padding="10,3"
                                             Margin="6,0,0,0"
                                             Command="{Binding DeleteForeverCommand}"
-                                            ToolTip.Tip="Delete this for good">
+                                            ToolTip.Tip="Delete permanently (asks first, then 10 seconds to undo)">
                                         <StackPanel Orientation="Horizontal" Spacing="5">
                                             <TextBlock Classes="icon"
                                                        FontSize="14"
                                                        Text="{x:Static controls:Symbols.Delete}"
                                                        Foreground="{DynamicResource DangerBrush}"/>
-                                            <TextBlock Text="Delete"/>
+                                            <TextBlock Text="Delete forever"/>
                                         </StackPanel>
                                     </Button>
                                 </Grid>
@@ -127,7 +119,7 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <StackPanel Grid.Row="2"
+            <StackPanel Grid.Row="1"
                         IsVisible="{Binding !HasTrash}"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"
@@ -141,7 +133,7 @@
                 <TextBlock Text="The trash bin is empty"
                            FontSize="16"
                            HorizontalAlignment="Center"/>
-                <TextBlock Text="Deleting a note or a paper asks for a second click and moves it here, not out of the vault. Restore it, or empty the bin to delete it for good."
+                <TextBlock Text="Deleting a note or a paper moves it here, not out of the vault. Restore it, or empty the bin to delete it for good."
                            Classes="muted"
                            FontSize="12"
                            TextAlignment="Center"

@@ -32,9 +32,9 @@
                 <Button Classes="rail"
                         Classes.active="{Binding IsGraphActive}"
                         Command="{Binding ShowGraphCommand}"
-                        AutomationProperties.Name="Graph"
+                        AutomationProperties.Name="Explore"
                         ToolTip.Placement="Right"
-                        ToolTip.Tip="Graph">
+                        ToolTip.Tip="Explore">
                     <TextBlock Classes="icon"
                                Classes.railActive="{Binding IsGraphActive}"
                                FontSize="16"
@@ -68,25 +68,13 @@
                 <Button Classes="rail"
                         Classes.active="{Binding IsDataSharingActive}"
                         Command="{Binding ShowDataSharingCommand}"
-                        AutomationProperties.Name="Data sharing and Connection"
+                        AutomationProperties.Name="Publish and backup"
                         ToolTip.Placement="Right"
-                        ToolTip.Tip="Data sharing and Connection">
+                        ToolTip.Tip="Publish &amp; Backup">
                     <TextBlock Classes="icon"
                                Classes.railActive="{Binding IsDataSharingActive}"
                                FontSize="16"
-                               Text="{x:Static controls:Symbols.CloudSync}"/>
-                </Button>
-
-                <Button Classes="rail"
-                        Classes.active="{Binding IsExtensionsActive}"
-                        Command="{Binding ShowExtensionsCommand}"
-                        AutomationProperties.Name="Extension"
-                        ToolTip.Placement="Right"
-                        ToolTip.Tip="Extension">
-                    <TextBlock Classes="icon"
-                               Classes.railActive="{Binding IsExtensionsActive}"
-                               FontSize="16"
-                               Text="{x:Static controls:Symbols.Extension}"/>
+                               Text="{x:Static controls:Symbols.Backup}"/>
                 </Button>
 
                 <Button Classes="rail"

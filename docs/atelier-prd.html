@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atelier — Reverse-Engineered PRD</title>
+<style>
+  @page { size: A4; margin: 17mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt; line-height: 1.45; color: #1b1f2a; margin: 0;
+  }
+  h1 { font-size: 17pt; margin: 0 0 2mm; letter-spacing: -0.2px; page-break-before: always; }
+  h1.first { page-break-before: avoid; }
+  h2 { font-size: 12.5pt; margin: 7mm 0 2mm; padding-bottom: 1.2mm; border-bottom: 1.5px solid #d8dee9; }
+  h3 { font-size: 10.5pt; margin: 4.5mm 0 1.5mm; }
+  p { margin: 0 0 2.2mm; }
+  ul, ol { margin: 0 0 2.5mm; padding-left: 5mm; }
+  li { margin-bottom: 0.8mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 8.6pt; margin: 1.5mm 0 3.5mm; }
+  th, td { border: 1px solid #d3d9e6; padding: 1.3mm 1.8mm; vertical-align: top; text-align: left; }
+  th { background: #eef1f7; font-weight: 600; font-size: 8.4pt; }
+  tr { page-break-inside: avoid; }
+  code { font-family: Consolas, "Courier New", monospace; font-size: 8.6pt; background: #f2f4f8; padding: 0 1px; }
+  .cover { page-break-after: always; padding-top: 12mm; }
+  .kicker { font-size: 9pt; letter-spacing: 2.4px; color: #5a6178; font-weight: 600; text-transform: uppercase; }
+  .cover h1 { page-break-before: avoid; font-size: 30pt; line-height: 1.12; margin: 4mm 0 3mm; letter-spacing: -0.6px; }
+  .cover .sub { font-size: 13pt; color: #3c4457; margin-bottom: 10mm; }
+  .rule { height: 3px; background: linear-gradient(90deg,#5b6cff,#9a5cf0,#2fb6a6); border-radius: 2px; margin: 6mm 0; }
+  .box { border: 1px solid #d3d9e6; border-left: 3px solid #5b6cff; background: #f7f9fd; padding: 3mm 3.5mm; margin: 2.5mm 0 4mm; }
+  .box.warn { border-left-color: #d98b00; background: #fdf8ef; }
+  .box.plain { border-left-color: #8a93a8; background: #f8f9fb; }
+  .tag { display: inline-block; padding: 0.2mm 1.4mm; border-radius: 2px; font-size: 7.4pt; font-weight: 700; letter-spacing: .3px; }
+  .obs { background: #dff2ea; color: #1c6650; }
+  .inf { background: #fdefd8; color: #7d4d00; }
+  .unk { background: #fbe3ea; color: #8a1f42; }
+  .meta { font-size: 8.6pt; color: #5a6178; }
+  .two { display: flex; gap: 6mm; }
+  .two > div { flex: 1; }
+  .fr td:first-child { white-space: nowrap; font-weight: 600; font-size: 8.2pt; }
+  .toc td { border: none; padding: 0.7mm 0; font-size: 9.4pt; }
+  .toc td:last-child { text-align: right; color: #5a6178; }
+  .small { font-size: 8.8pt; }
+  .nowrap { white-space: nowrap; }
+  .ac { font-style: italic; color: #3c4457; }
+  footer { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ COVER -->
+<div class="cover">
+  <div class="kicker">Reverse-engineered product requirements</div>
+  <h1>Atelier: Scholarly Workspace</h1>
+  <p class="sub">A traceable research workspace for the movement from sources and reading to synthesis, concepts, preparation and writing.</p>
+  <div class="rule"></div>
+
+  <table style="width:100%; font-size:9.2pt;">
+    <tr><th style="width:32mm">Document</th><td>Product Requirements Document — reverse-engineered specification</td></tr>
+    <tr><th>Version</th><td>1.0 · 20 November 2026</td></tr>
+    <tr><th>Subject</th><td>Atelier 1.x (macOS / iPadOS / Windows), published by Source &amp; Sense. Manual edition August 2026.</td></tr>
+    <tr><th>Purpose</th><td>Describe the product as built, well enough to rebuild, extend, or benchmark against it.</td></tr>
+    <tr><th>Basis</th><td>Public product tour (10 screens), Atelier Researcher Manual (August 2026), privacy policy, marketing and FAQ copy. No binaries were inspected.</td></tr>
+    <tr><th>Status</th><td>Externally derived. Every claim is labelled <span class="tag obs">OBSERVED</span>, <span class="tag inf">INFERRED</span> or <span class="tag unk">UNKNOWN</span>.</td></tr>
+  </table>
+
+  <div class="box plain">
+    <strong>How to read the confidence labels</strong>
+    <table style="margin-bottom:0">
+      <tr>
+        <td style="width:26mm"><span class="tag obs">OBSERVED</span></td>
+        <td>Stated or shown by Atelier itself — tour captions, manual text, policy pages.</td>
+      </tr>
+      <tr>
+        <td><span class="tag inf">INFERRED</span></td>
+        <td>Deduced from observed behaviour, screen structure or standard practice. Plausible, not confirmed.</td>
+      </tr>
+      <tr>
+        <td><span class="tag unk">UNKNOWN</span></td>
+        <td>Cannot be established from public material — flagged so a rebuild makes a deliberate choice.</td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="meta" style="margin-top:8mm">This document contains no Atelier source code, assets or proprietary text. It is an independent specification written from published product information, for planning purposes.</p>
+</div>
+
+<!-- ============================================================ TOC -->
+<h1 class="first">Contents</h1>
+<table class="toc">
+  <tr><td>1. Product snapshot</td><td>2</td></tr>
+  <tr><td>2. Method, evidence and limits</td><td>2</td></tr>
+  <tr><td>3. Users, jobs and positioning</td><td>3</td></tr>
+  <tr><td>4. The product model: loop, journey, workspaces</td><td>3</td></tr>
+  <tr><td>5. Domain model</td><td>4</td></tr>
+  <tr><td>6. Information architecture and navigation</td><td>6</td></tr>
+  <tr><td>7. Screen specifications</td><td>7</td></tr>
+  <tr><td>8. AI assistance subsystem</td><td>11</td></tr>
+  <tr><td>9. Research profiles</td><td>12</td></tr>
+  <tr><td>10. Import, storage, continuity and export</td><td>13</td></tr>
+  <tr><td>11. Functional requirements</td><td>14</td></tr>
+  <tr><td>12. Non-functional requirements and posture</td><td>17</td></tr>
+  <tr><td>13. Interface and design observations</td><td>17</td></tr>
+  <tr><td>14. Gaps, risks and unknowns</td><td>18</td></tr>
+  <tr><td>15. Rebuild sequencing</td><td>19</td></tr>
+  <tr><td>Appendix A — Vocabulary reference</td><td>19</td></tr>
+  <tr><td>Appendix B — Evidence map</td><td>20</td></tr>
+</table>
+
+<!-- ============================================================ 1 -->
+<h1>1. Product snapshot</h1>
+
+<p>Atelier is a <strong>desktop-first, local-first workspace for scholarly research</strong>. Its subject is the part of research that sits <em>between</em> collecting sources and drafting a paper: deciding what belongs, reading with a stated purpose, recording interpretation separately from source text, comparing sources, naming tensions, and assembling writing material. The product's public tagline states the thesis directly: <em>"Research has a middle. Atelier gives it structure."</em></p>
+
+<table>
+  <tr><th style="width:30mm">Attribute</th><th>Value</th><th style="width:22mm">Confidence</th></tr>
+  <tr><td>Category</td><td>Scholarly research workspace / reading-and-synthesis environment. Explicitly <em>not</em> a citation manager.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Platforms</td><td>macOS (App Store, universal with iPadOS), Windows (Microsoft Store). Companion app <em>Folio PDF Reader &amp; Editor</em> is separate.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Price</td><td>Free; voluntary contributions.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Account</td><td>None. No sign-in, registration or profile for core work.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Storage</td><td>Local workspace folder on the device; movable to an external drive; openable from an existing folder.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Sync</td><td>No cloud collaboration. Workspace transfer is archive export/import.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Core method</td><td>Four-stage loop: Encounter → Engage → Synthesize → Integrate.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Primary surfaces</td><td>Project Home, Journey, Sources, Reader, Source Notes, Trail, Literature Matrix, Synthesis, Concepts &amp; Relations, Open Questions, Preparation, Review.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>AI posture</td><td>Optional, action-triggered, consent-gated, previewable, ledgered, switchable off; managed / BYOK / local / air-gapped routes.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Encryption at rest</td><td>Not mentioned anywhere in manual, policy or marketing.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+</table>
+
+<h3>What the product claims about itself</h3>
+<div class="box">
+  <p style="margin:0"><strong>Positioning statement (manual):</strong> "Atelier's job is to make research work inspectable." It brings together objects usually spread across browser tabs, reference managers, note apps, documents, spreadsheets and private memory: guiding inquiries, sources, reading intent, source notes, locators, synthesis, concepts, relations, open questions, preparation packets and review.</p>
+</div>
+
+<h3>What it explicitly refuses to be</h3>
+<ul>
+  <li>Not a paper generator, and no substitute for close reading or interpretation.</li>
+  <li>Not a continuous cloud collaboration platform or instructor portal.</li>
+  <li>Not a replacement for Zotero, Mendeley, EndNote or discipline databases.</li>
+  <li>Not a source-verification service — AI leads require independent checking.</li>
+  <li>Not a system that certifies quality, originality, privacy posture or readiness.</li>
+  <li>No claim of formal accessibility compliance.</li>
+</ul>
+
+<!-- ============================================================ 2 -->
+<h1>2. Method, evidence and limits</h1>
+<p>This specification was derived from four public sources, cross-checked against each other:</p>
+<table>
+  <tr><th style="width:44mm">Source</th><th>What it establishes</th></tr>
+  <tr><td>Product tour (atelierworkspace.com)</td><td>Ten named screens in their natural aspect ratio, with captions describing each screen's content and purpose; the four-stage loop; the AI check names and verdict vocabularies; profiles; exports; pricing.</td></tr>
+  <tr><td>Atelier Researcher Manual, August 2026 (PDF, 20 pp.)</td><td>Settings structure, profile behaviour, source lifecycle vocabulary, Reader surface list, Matrix lenses and provenance caveat, concept relation labels, question statuses, preparation steps, export matrix, AI routing controls, Go to… scope, supervision rhythm.</td></tr>
+  <tr><td>Privacy policy (effective June 2026)</td><td>No-account model, what is stored locally, what AI actions may send, that the managed AI route uses third-party infrastructure including Google Gemini, and that no provider key is stored in the app.</td></tr>
+  <tr><td>Marketing and FAQ copy</td><td>Audience segments, differentiators, non-goals, absence of formal accessibility claim.</td></tr>
+</table>
+
+<div class="box warn">
+  <strong>Limits of an external reverse-engineering pass.</strong> Nothing here comes from disassembling the application. Storage format, algorithm internals, performance characteristics, exact AI prompts and model selection, and the behaviour of unshipped or undisclosed features are not observable. Where a rebuild must decide, this document says so rather than inventing a fact.
+</div>
+
+<h3>Why this is still useful</h3>
+<p>The observable surface is unusually complete for a product of this kind: the manual names the enums, the tour names the screens, and the policy names the data flows. What remains is implementation, not intent — and implementation is the part a new build gets to choose.</p>
+
+<!-- ============================================================ 3 -->
+<h1>3. Users, jobs and positioning</h1>
+
+<table>
+  <tr><th style="width:26mm">Segment</th><th style="width:60mm">Job to be done</th><th>What Atelier provides for it</th></tr>
+  <tr>
+    <td><strong>Researchers</strong></td>
+    <td>Maintain epistemic continuity across long projects: from a source passage to a note, a synthesis, a concept, and a writing plan.</td>
+    <td>Traceable objects at every step; reverse context ("Used in"); passage return; project archives that restore.</td>
+  </tr>
+  <tr>
+    <td><strong>Students</strong></td>
+    <td>Learn a reusable research method and make the development of an argument visible before the paper is due.</td>
+    <td>The loop as an interface; source rationale; separation of source text from interpretation; fidelity and adherence checks.</td>
+  </tr>
+  <tr>
+    <td><strong>Instructors</strong></td>
+    <td>Give feedback while thinking can still change, using process evidence and a practical rubric.</td>
+    <td>Readable Dossier exports; Journey (8 stages) as process evidence; reflection surfaces in Review; teaching toolkit PDF.</td>
+  </tr>
+  <tr>
+    <td><strong>Institutions</strong></td>
+    <td>Support coherent research teaching and integrity-by-demonstration with low-friction adoption and no central student-data platform.</td>
+    <td>No accounts, no central store; per-project local workspaces; institution decides AI route and storage policy.</td>
+  </tr>
+</table>
+
+<h3>Competitive stance</h3>
+<table>
+  <tr><th style="width:40mm">Adjacent tool</th><th>Relationship</th></tr>
+  <tr><td>Zotero / EndNote / Mendeley</td><td>Sits beside them. Imports citation metadata; does not store or sync libraries, and does not format citations.</td></tr>
+  <tr><td>Reference managers + note apps (Obsidian, Notion)</td><td>Atelier supplies the scholarly object model and method; it is not a general note tool.</td></tr>
+  <tr><td>PDF annotators (Zotero, Folio, Preview)</td><td>Its Reader is document-level but the point is the note, the locator and what the note later supports.</td></tr>
+  <tr><td>AI writing assistants</td><td>Deliberate inverse: AI never writes the artefact; it returns named readings for the researcher to judge.</td></tr>
+</table>
+
+<h3>The differentiating idea</h3>
+<div class="box">
+  <p style="margin:0 0 1.5mm"><strong>"Human interpretation first, AI second."</strong> This is not a slogan in the UI; it is enforced architecturally:</p>
+  <ul style="margin-bottom:0">
+    <li>AI output never becomes a stored artefact without a human action.</li>
+    <li>AI never drafts synthesis notes, replacement sentences or paper text.</li>
+    <li>AI actions are named, enumerated and bounded, each returning a fixed-vocabulary reading.</li>
+    <li>Every action is previewable and recorded.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 4 -->
+<h1>4. The product model: loop, journey, workspaces</h1>
+
+<h3>4.1 The four-stage loop</h3>
+<table>
+  <tr><th style="width:24mm">Stage</th><th style="width:38mm">Verb</th><th>Work</th><th style="width:44mm">Artefacts produced</th></tr>
+  <tr><td><strong>1. Encounter</strong></td><td>Frame the work</td><td>Create a project, write a guiding inquiry, gather sources, and state why each source belongs.</td><td>Inquiry + source records with rationale</td></tr>
+  <tr><td><strong>2. Engage</strong></td><td>Read deliberately</td><td>Set a Reading Purpose, read closely, capture observations as source-bound source notes.</td><td>Source notes with locators</td></tr>
+  <tr><td><strong>3. Synthesize</strong></td><td>Connect the thinking</td><td>Compare sources, name patterns and tensions, define concepts, preserve unresolved questions.</td><td>Synthesis notes, concepts, relations, open questions</td></tr>
+  <tr><td><strong>4. Integrate</strong></td><td>Prepare with purpose</td><td>Build a research writing plan, review grounding, export what is needed.</td><td>Preparation plan + dossier</td></tr>
+</table>
+
+<h3>4.2 Research Journey: eight connected stages</h3>
+<p><span class="tag obs">OBSERVED</span> Journey shows the project as eight connected stages, keeps recent movement and meaningful next steps visible, and exports to Word or PDF. The eight stage names are not published individually; the four loop stages above are their parent grouping. <span class="tag inf">INFERRED</span> The eight are most plausibly: inquiry set → sources gathered → sources read → notes captured → comparison begun → synthesis drafted → concepts/relations built → preparation planned.</p>
+
+<h3>4.3 Stage → workspace → artefact map</h3>
+<table>
+  <tr><th style="width:20mm">Loop stage</th><th style="width:30mm">Workspace</th><th>What the researcher does there</th><th style="width:38mm">Persisted result</th></tr>
+  <tr><td rowspan="3">Encounter</td><td>Project Home</td><td>Opens with guiding inquiry, path, next useful move, structure and recent movement.</td><td>Project record</td></tr>
+  <tr><td>Sources</td><td>Adds source records, rationale, reading intent, collections, attachments; imports citations.</td><td>Source records</td></tr>
+  <tr><td>Research Journey</td><td>Inspects the project as connected stages; exports the trail.</td><td>Derived view</td></tr>
+  <tr><td rowspan="2">Engage</td><td>Reader</td><td>Reads the document with Document Map, Search, Focus, Thoughts and session controls.</td><td>Reading session, summaries</td></tr>
+  <tr><td>Source Notes</td><td>Writes typed, sourced notes; optional fidelity/adherence checks.</td><td>Source notes + locators</td></tr>
+  <tr><td rowspan="4">Synthesize</td><td>Literature Matrix</td><td>Compares sources across profile-aware fields and lenses.</td><td>Matrix rows/cells</td></tr>
+  <tr><td>Synthesis</td><td>Drafts project-level interpretation over selected evidence.</td><td>Synthesis notes</td></tr>
+  <tr><td>Concepts &amp; Relations</td><td>Defines concepts, alternate names, and labelled relations with rationale.</td><td>Concept + relation nodes</td></tr>
+  <tr><td>Open Questions</td><td>Keeps uncertainty in a list or board with status and evidence.</td><td>Question records</td></tr>
+  <tr><td rowspan="2">Integrate</td><td>Preparation</td><td>Choose material → Shape direction → Review &amp; export; optional Detailed outline.</td><td>Preparation plan</td></tr>
+  <tr><td>Project Review</td><td>Reflects over evidence, structure and activity; optional AI-assisted review.</td><td>Review record</td></tr>
+</table>
+
+<!-- ============================================================ 5 -->
+<h1>5. Domain model</h1>
+<p>The object graph below is reverse-engineered from the vocabulary the product uses in its own manual and tour. Field lists are the minimum a rebuild must carry to reproduce the described behaviour.</p>
+
+<h3>5.1 Entities</h3>
+<table>
+  <tr><th style="width:32mm">Entity</th><th>Key fields</th><th style="width:44mm">Notes / invariants</th><th style="width:18mm">Confidence</th></tr>
+  <tr>
+    <td><strong>Workspace</strong></td>
+    <td>root path, default research profile, reading theme, typography scale, AI route config</td>
+    <td>One local workspace per app instance; can be moved to an external drive or switched to another existing folder.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Project</strong></td>
+    <td>title, guiding inquiry, short description, research profile, research-and-AI response language, status, created/updated</td>
+    <td>Profile and language are per project and may differ from the workspace default.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Source</strong></td>
+    <td>kind, metadata (authors, year, title, container, DOI), rationale, reading intent, status, collections, attachment, used-in-thinking flag</td>
+    <td>Three kinds: close-reading document (PDF/DOCX/TXT), online source, citation-only record. Citation-only and online sources remain valid research objects even if unreadable in-app.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Collection</strong></td>
+    <td>name, member sources</td>
+    <td>Organises scholarship for reuse across projects; explicitly does <em>not</em> create live sync between independent project records.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Reading session</strong></td>
+    <td>source, purpose, start/end, notes produced, summary</td>
+    <td>Purpose is set before reading; adherence can later be checked. Session summaries exist in the Reader.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Source note</strong></td>
+    <td>source, locator/passage, note type (profile vocabulary), interpretation text, origin, discipline tags, attachments, optional check result</td>
+    <td>Must keep the source's content and the researcher's response separable — that separation is the object's reason to exist.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Locator / passage</strong></td>
+    <td>page or region, quoted text, document reference</td>
+    <td>Return targets a saved passage; when unavailable, the app offers the nearest safe source-note or source fallback rather than failing.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Thought note</strong></td>
+    <td>text, source, position</td>
+    <td>Reader's "Thoughts" surface — lighter than a source note; appears in the stored-data list of the privacy policy.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Synthesis note</strong></td>
+    <td>text, evidence links (source notes, direct locators, concepts, background sources), perspective tags, origin</td>
+    <td>Origin may be researcher, optional AI assistance, or imported material — the context must survive.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Concept</strong></td>
+    <td>name, alternate names, definition, appearances</td>
+    <td>Independently meaningful node; searchable in Go to…; shows "Appears in" context.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Relation</strong></td>
+    <td>from, to, label, rationale</td>
+    <td>Exactly four labels today. Never inferred automatically from shared words or topical similarity.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Open question</strong></td>
+    <td>question, status, evidence links, researcher notes, board column</td>
+    <td>List and Board views; can be carried into a writing plan.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Matrix row</strong></td>
+    <td>source, profile-dependent fields, supporting source notes (row-level), manual material</td>
+    <td>Row evidence supports the row as a whole; it is explicitly <em>not</em> cell-level provenance.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Preparation plan</strong></td>
+    <td>chosen material (synthesis notes, source notes, sources, concepts, relations, questions), direction, outline</td>
+    <td>Built in three steps; optional Detailed outline is the argument scaffold.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Review record</strong></td>
+    <td>reflection dimensions, evidence selections, structure observations, activity, optional AI review</td>
+    <td>Produces no score and no completion verdict.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>AI action / ledger entry</strong></td>
+    <td>action kind, context scope, request preview, outcome, researcher decision, timestamp</td>
+    <td>One record per initiated action; basis of the "AI ledger" claim.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+  <tr>
+    <td><strong>Export artefact</strong></td>
+    <td>kind (Dossier, Archive, Plan, Matrix, Journey, Review), options, destination</td>
+    <td>Readable outputs and restorable outputs are deliberately different things.</td>
+    <td><span class="tag obs">OBSERVED</span></td>
+  </tr>
+</table>
+
+<h3>5.2 Enumerations (the product's fixed vocabularies)</h3>
+<table>
+  <tr><th style="width:38mm">Enum</th><th>Values</th><th style="width:20mm">Confidence</th></tr>
+  <tr><td>Source status</td><td>Encountered · Engaged · Extracted · Integrated</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Source kind</td><td>Close-reading document · Online source · Citation-only record</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Relation label</td><td>Supports · Adds tension · Challenges · Gives an example</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Question status</td><td>Still open · Partly addressed · In preparation · Set aside</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Fidelity verdict</td><td>Separable · Blended · Transcription</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Purpose adherence</td><td>On purpose · Redirected · Diffuse</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Grounding reading</td><td>Visible grounding · Not yet visible · Relations needing rationale · Questions to consider</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Research profile</td><td>Humanities · Social Sciences · Science · Medical &amp; Health · Engineering &amp; Technology · General / Interdisciplinary</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>AI route</td><td>Atelier built-in · Your provider (BYOK) · Local loopback · Air-Gapped</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Matrix lens</td><td>Argument · Approach · Relevance · Notes</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Note type</td><td>Discipline-dependent, supplied by the active profile</td><td><span class="tag inf">INFERRED</span></td></tr>
+</table>
+
+<h3>5.3 Relationships</h3>
+<div class="box plain" style="font-family:Consolas,monospace; font-size:8.4pt; line-height:1.6">
+Workspace 1─* Project<br>
+Project 1─* Source ──* Collection   (a source may sit in several collections)<br>
+Source 1─* ReadingSession 1─* SourceNote<br>
+SourceNote *─1 Locator ──(belongs to) Source<br>
+Project 1─* SynthesisNote *─* {SourceNote, Locator, Concept, BackgroundSource}<br>
+Concept *─* Concept  via Relation(label, rationale)<br>
+Project 1─* OpenQuestion *─* evidence<br>
+Project 1─* MatrixRow 1─1 Source;  MatrixRow *─* SourceNote (row-level evidence)<br>
+Project 1─0..1 PreparationPlan *─* {SynthesisNote, SourceNote, Source, Concept, Relation, Question}<br>
+Project 1─* ReviewRecord ;  Project 1─* AiLedgerEntry ;  Project 1─* ExportArtefact
+</div>
+
+<div class="box warn">
+  <strong>Integrity rules the model must enforce</strong> (observed as product claims, therefore requirements):
+  <ul style="margin-bottom:0">
+    <li>Every source note retains a locator or explicitly degrades to a nearest-safe fallback.</li>
+    <li>No relation is created from lexical or topical similarity; relations are researcher-created.</li>
+    <li>Row evidence is never presented as cell evidence.</li>
+    <li>No AI text becomes a stored artefact without an explicit human action.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 6 -->
+<h1>6. Information architecture and navigation</h1>
+
+<table>
+  <tr><th style="width:34mm">Surface</th><th style="width:22mm">Level</th><th>Role</th></tr>
+  <tr><td>Project Home</td><td>Project</td><td>Landing: guiding inquiry, journey path, next useful move, structure, recent movement.</td></tr>
+  <tr><td>Research Journey</td><td>Project</td><td>Eight-stage narrative of the project; exports.</td></tr>
+  <tr><td>Sources</td><td>Project</td><td>Source records: rationale, intent, lifecycle, collections, next reading action.</td></tr>
+  <tr><td>Reader</td><td>Source</td><td>Document Map, Search, Focus, Thoughts, Source Notes, display controls, session summaries, locations.</td></tr>
+  <tr><td>Source Notes</td><td>Source / Project</td><td>Typed notes bound to locators; optional checks.</td></tr>
+  <tr><td>Research Trail</td><td>Project</td><td>Maps a source to analytical purpose, contribution, supported concepts and recorded synthesis uses.</td></tr>
+  <tr><td>Literature Matrix</td><td>Project</td><td>Source Analysis and Comparative Matrix; lenses Argument/Approach/Relevance/Notes.</td></tr>
+  <tr><td>Synthesis</td><td>Project</td><td>Project-level interpretation over selected evidence.</td></tr>
+  <tr><td>Concepts &amp; Relations</td><td>Project</td><td>Framework nodes, alternate names, four labelled relations with rationale.</td></tr>
+  <tr><td>Open Questions</td><td>Project</td><td>Uncertainty register with statuses, evidence and notes; List/Board.</td></tr>
+  <tr><td>Preparation</td><td>Project</td><td>Three-step writing plan; optional Detailed outline; export.</td></tr>
+  <tr><td>Project Review</td><td>Project</td><td>Reflection over evidence, structure and activity; optional AI review.</td></tr>
+  <tr><td>Settings — Workspace</td><td>App</td><td>Default profile, reading theme, typography scale.</td></tr>
+  <tr><td>Settings — AI &amp; Privacy</td><td>App</td><td>Consent, request preview, provider routing, Air-Gapped controls.</td></tr>
+  <tr><td>Settings — Data &amp; Storage</td><td>App</td><td>Workspace location, external drive move, open existing, restore samples, reset.</td></tr>
+  <tr><td>Go to… (⌘K / Ctrl+K)</td><td>Global</td><td>Read-only navigator across projects: sources, notes, concepts, questions, matrix rows, plans, reviews.</td></tr>
+</table>
+
+<h3>6.1 Navigation model</h3>
+<ul>
+  <li>Project-scoped rail for the twelve project surfaces above; app-scoped Settings; global overlay for Go to….</li>
+  <li>Cross-project movement happens through Go to…, collections, and opening another project — not through a dashboard-first model. <span class="tag inf">INFERRED</span></li>
+  <li>Journey and Project Home are the two "where am I / what next" surfaces; the rest are work surfaces. <span class="tag inf">INFERRED</span></li>
+</ul>
+
+<h3>6.2 Keyboard and persistence gestures</h3>
+<table>
+  <tr><th style="width:34mm">Gesture</th><th>Behaviour</th><th style="width:18mm">Confidence</th></tr>
+  <tr><td>⌘K / Ctrl+K</td><td>Go to… — read-only, searches stored research; does not create, alter or run anything.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>⌘S / Ctrl+S</td><td>Saves work locally.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>⇧⌘S / Shift+Ctrl+S</td><td>Save Workspace — exports a portable <code>.atelier</code> archive.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Open <code>.atelier</code></td><td>Replaces the current local workspace after confirmation.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+</table>
+
+<!-- ============================================================ 7 -->
+<h1>7. Screen specifications</h1>
+<p>Each entry states the purpose, the elements the tour or manual shows, the interactions implied, and the states a rebuild must handle.</p>
+
+<h3>7.1 Project Home</h3>
+<table>
+  <tr><th style="width:26mm">Element</th><th>Content</th></tr>
+  <tr><td>Guiding inquiry</td><td>The project's one-or-two-sentence question, expected to change as research develops.</td></tr>
+  <tr><td>Project pathway</td><td>Compact rendering of the eight-stage journey with the current position.</td></tr>
+  <tr><td>Next useful move</td><td>A single suggested action derived from project state (see 7.13 for Review's related recommendation).</td></tr>
+  <tr><td>Project structure</td><td>Counts/navigator into sources, notes, synthesis, concepts, questions, plan.</td></tr>
+  <tr><td>Recent project movement</td><td>What changed lately, in the researcher's own actions.</td></tr>
+  <tr><td>Context chips</td><td>Profile, status, research language.</td></tr>
+</table>
+<p class="small"><strong>Empty state (new project):</strong> inquiry field focused, "add three to five sources" guidance, no fake data. <span class="tag inf">INFERRED</span></p>
+
+<h3>7.2 Research Journey</h3>
+<ul>
+  <li>Eight connected stages, each showing what it contains and what has moved.</li>
+  <li>Recent source work and synthesis movement surfaced alongside the path.</li>
+  <li>Evidence subsets (which sources/synthesis feed each stage) visible.</li>
+  <li>Export to Word or PDF.</li>
+</ul>
+
+<h3>7.3 Sources</h3>
+<table>
+  <tr><th style="width:26mm">Element</th><th>Content</th></tr>
+  <tr><td>Source card</td><td>Title, citation, kind, status chip, rationale snippet, reading intent, collections, next reading action.</td></tr>
+  <tr><td>Rationale</td><td>Why this source belongs in this project — a first-class field, not a tag.</td></tr>
+  <tr><td>Reading intent</td><td>What the researcher expects to get from it before opening it.</td></tr>
+  <tr><td>Lifecycle</td><td>Encountered → Engaged → Extracted → Integrated.</td></tr>
+  <tr><td>Used in Thinking</td><td>Separate signal that material was deliberately carried into project structure.</td></tr>
+  <tr><td>Collections</td><td>Cross-project grouping; explicitly non-syncing.</td></tr>
+  <tr><td>Attachments</td><td>Optional local document.</td></tr>
+</table>
+
+<h3>7.4 Citation import</h3>
+<ul>
+  <li>Sources: local Zotero application connection, citation export files (Mendeley, EndNote), pasted citations, DOIs.</li>
+  <li>Candidate review step before records are created; duplicate detection within the project.</li>
+  <li>Does not modify external libraries, copy attachments or annotations, or promise continuous sync.</li>
+  <li>Zotero failure path: open Zotero and enable local application access, or import an export file.</li>
+</ul>
+
+<h3>7.5 Reader</h3>
+<table>
+  <tr><th style="width:34mm">Surface</th><th>Behaviour</th></tr>
+  <tr><td>Document Map</td><td>Structural overview of the document for navigation.</td></tr>
+  <tr><td>Search</td><td>In-document search.</td></tr>
+  <tr><td>Focus</td><td>Distraction-reduced reading mode.</td></tr>
+  <tr><td>Thoughts</td><td>Lightweight thought capture while reading.</td></tr>
+  <tr><td>Source Notes</td><td>Document-level notes with locators, kept distinct from source text.</td></tr>
+  <tr><td>Display controls</td><td>Reading theme and typography scale (workspace-level defaults).</td></tr>
+  <tr><td>Session summary</td><td>End-of-session record of what was read and noted.</td></tr>
+  <tr><td>Direct locations</td><td>Jump to a saved passage; nearest-safe fallback when it cannot be resolved.</td></tr>
+</table>
+<p class="small">Citation-only and online sources open a reduced reader (metadata, notes, intent) because there is no local document. <span class="tag inf">INFERRED</span></p>
+
+<h3>7.6 Source Notes</h3>
+<ul>
+  <li>Note types supplied by the active research profile (discipline-aware vocabulary).</li>
+  <li>Fields: researcher interpretation, source location, origin, tags, attachments, optional AI checks.</li>
+  <li>The distinction between "what the source says" and "what I think" is structural, not stylistic.</li>
+  <li>Portable downstream: notes feed Matrix rows, Synthesis evidence, Trail, Preparation.</li>
+</ul>
+
+<h3>7.7 Research Trail</h3>
+<ul>
+  <li>Traces a source to its analytical purpose, research contribution, supported concepts, and recorded synthesis uses.</li>
+  <li>Reverse context ("Used in") shows where a source note, synthesis, concept or question is relied on elsewhere.</li>
+  <li>This is the audit view of the project's reasoning, and the main answer to "why is this source here?".</li>
+</ul>
+
+<h3>7.8 Literature Matrix</h3>
+<table>
+  <tr><th style="width:30mm">Aspect</th><th>Specification</th></tr>
+  <tr><td>Surfaces</td><td>Focused <em>Source Analysis</em> and <em>Comparative Matrix</em>.</td></tr>
+  <tr><td>Lenses</td><td>Argument · Approach · Relevance · Notes.</td></tr>
+  <tr><td>Columns</td><td>Profile-dependent. Social Sciences example: Claim or finding · Design and sample · Constructs and theory · Evidence worth citing · Why it matters here · Limitations and gaps.</td></tr>
+  <tr><td>Editing</td><td>Cells are editable; material may be added manually; cells can be refreshed from source notes.</td></tr>
+  <tr><td>Evidence</td><td>Row-level supporting notes. Explicitly not cell-level provenance.</td></tr>
+  <tr><td>Export</td><td>CSV, XLSX, formatted clipboard table.</td></tr>
+</table>
+
+<h3>7.9 Synthesis</h3>
+<ul>
+  <li>Project-level interpretation, written over deliberately selected evidence.</li>
+  <li>Evidence types: source-note evidence, direct source locators, concepts, perspective tags, background sources.</li>
+  <li>Origin is retained: researcher, optional AI assistance, or imported material.</li>
+  <li>AI may assist but never produces the synthesis note itself.</li>
+</ul>
+
+<h3>7.10 Concepts &amp; Relations</h3>
+<ul>
+  <li>Concepts are independently meaningful framework nodes with alternate names, searchable via Go to…, showing "Appears in" context.</li>
+  <li>Connection builder offers exactly four labels: Supports, Adds tension, Challenges, Gives an example.</li>
+  <li>Relations carry a rationale when it matters; no automatic inference from shared words or similarity.</li>
+</ul>
+
+<h3>7.11 Open Questions</h3>
+<ul>
+  <li>Statuses: Still open, Partly addressed, In preparation, Set aside.</li>
+  <li>List and Board views; evidence links and researcher notes; can be carried into a writing plan.</li>
+  <li>Exists to keep productive uncertainty visible rather than resolving it prematurely.</li>
+</ul>
+
+<h3>7.12 Preparation</h3>
+<table>
+  <tr><th style="width:34mm">Step</th><th>Work</th></tr>
+  <tr><td>1. Choose material</td><td>Select synthesis notes, source notes, sources, concepts, relations and questions.</td></tr>
+  <tr><td>2. Shape direction</td><td>Set the plan's direction for a chapter, paper, meeting or presentation.</td></tr>
+  <tr><td>3. Review &amp; export</td><td>Check grounding, then export a focused Word plan/brief; optional Detailed outline (argument scaffold).</td></tr>
+</table>
+<p class="small">Choosing citations and locations deliberately is part of the step; writing still happens outside.</p>
+
+<h3>7.13 Project Review</h3>
+<ul>
+  <li>Reflective prompts over evidence, structure and recent activity.</li>
+  <li>Recommends a reflection focus ("what needs revision or further inquiry").</li>
+  <li>Optional AI-assisted review returns a reading, not a score.</li>
+  <li>Produces no completion verdict by design.</li>
+</ul>
+
+<!-- ============================================================ 8 -->
+<h1>8. AI assistance subsystem</h1>
+
+<h3>8.1 Contract</h3>
+<div class="box">
+  <ol style="margin:0">
+    <li><strong>Initiated</strong> — every action is chosen by the researcher; nothing runs in the background.</li>
+    <li><strong>Bounded</strong> — each action declares the context it needs and sends only that.</li>
+    <li><strong>Previewable</strong> — a request preview can show exactly what would be sent, before it is sent.</li>
+    <li><strong>Judged, not applied</strong> — output is a reading from a fixed vocabulary; the researcher decides what to do.</li>
+    <li><strong>Recorded</strong> — an AI ledger records each request, its outcome, and the researcher's decision.</li>
+  </ol>
+</div>
+
+<h3>8.2 Action catalog</h3>
+<table>
+  <tr><th style="width:34mm">Action</th><th style="width:24mm">Moment</th><th>Question it answers</th><th style="width:44mm">Verdict vocabulary</th></tr>
+  <tr>
+    <td><strong>Paraphrase Fidelity Check</strong></td><td>While reading</td>
+    <td>Compares the note with the passage selected: are the source's content and my interpretation still separable?</td>
+    <td>Separable · Blended · Transcription</td>
+  </tr>
+  <tr>
+    <td><strong>Reading Purpose Adherence</strong></td><td>While reading</td>
+    <td>Measures a session's notes against the stated reading purpose — did the source change what matters, or did attention drift?</td>
+    <td>On purpose · Redirected · Diffuse</td>
+  </tr>
+  <tr>
+    <td><strong>Source Grounding Observations</strong></td><td>While synthesizing / comparing</td>
+    <td>Which concepts, synthesis notes, relations and preparation statements are visibly connected to sources, and which are not yet grounded?</td>
+    <td>Visible grounding · Not yet visible · Relations needing rationale · Questions to consider</td>
+  </tr>
+  <tr>
+    <td>Further actions (names undisclosed)</td><td>Reading (3 total), Synthesizing (3), Comparing (3), Deciding direction (4)</td>
+    <td>The tour groups actions by moment and counts them: 3 + 3 + 3 + 4 = 13 actions in total.</td>
+    <td><span class="tag unk">UNKNOWN</span> — only three vocabularies are public</td>
+  </tr>
+</table>
+
+<h3>8.3 Hard exclusions (product-level, not prompt-level)</h3>
+<ul>
+  <li>Never invents a quotation, page number, locator, date or bibliographic detail; where provenance is missing it says so and asks the researcher to verify first.</li>
+  <li>Never writes the synthesis note, the replacement sentence, or any part of the paper; it names the move that would be needed and stops.</li>
+  <li>Never treats recognition of a well-known work as evidence of what that work says.</li>
+  <li>Never sends full PDFs, attached files, unrelated projects, the whole workspace, local paths, API keys or app configuration automatically.</li>
+</ul>
+
+<h3>8.4 Routing and control</h3>
+<table>
+  <tr><th style="width:34mm">Route</th><th>Meaning</th><th style="width:30mm">Notes</th></tr>
+  <tr><td>Atelier built-in</td><td>Default managed service; no endpoint or API key needed.</td><td>Third-party infrastructure incl. Google Gemini; no provider key stored in the app.</td></tr>
+  <tr><td>Your provider (BYOK)</td><td>Researcher-supplied compatible endpoint and model.</td><td>Connection must be verified before it becomes active.</td></tr>
+  <tr><td>Local models</td><td>Loopback endpoint (Ollama, llama.cpp).</td><td>Runs without an outbound connection.</td></tr>
+  <tr><td>Air-Gapped Mode</td><td>Blocks outbound connections entirely, including web-link metadata fetching.</td><td>AI only via localhost/127.0.0.1/::1 endpoints.</td></tr>
+</table>
+<p><strong>Off switch:</strong> AI can be disabled entirely; the workspace then behaves as a purely manual tool. <span class="tag obs">OBSERVED</span></p>
+
+<h3>8.5 Response language</h3>
+<ul>
+  <li>One research-and-AI response language per project.</li>
+  <li>Research text may be multilingual with direction-aware presentation; interface labels stay English.</li>
+  <li>Model explanations are requested in the project's response language — not a translation guarantee for sources.</li>
+</ul>
+
+<!-- ============================================================ 9 -->
+<h1>9. Research profiles</h1>
+<table>
+  <tr><th style="width:44mm">Profile</th><th>What it changes</th></tr>
+  <tr><td>Humanities</td><td rowspan="6">Source-note vocabulary, guidance language, examples/prompts, and Literature Matrix column labels. It does <strong>not</strong> score work, redefine terms in existing records, or reclassify evidence. A project may override the workspace default.</td></tr>
+  <tr><td>Social Sciences</td></tr>
+  <tr><td>Science</td></tr>
+  <tr><td>Medical &amp; Health</td></tr>
+  <tr><td>Engineering &amp; Technology</td></tr>
+  <tr><td>General / Interdisciplinary</td></tr>
+</table>
+
+<div class="box plain">
+  <strong>Worked example (manual).</strong> A Social Sciences matrix compares: <em>Claim or finding · Design and sample · Constructs and theory · Evidence worth citing · Why it matters here · Limitations and gaps.</em> The same six cells in another profile carry that discipline's vocabulary, not a different method.
+</div>
+
+<p><strong>Design intent:</strong> profiles lower the cost of starting without constraining the work. They are a presentation layer over a stable object model — which is exactly what makes them cheap to add later. <span class="tag inf">INFERRED</span></p>
+
+<!-- ============================================================ 10 -->
+<h1>10. Import, storage, continuity and export</h1>
+
+<h3>10.1 Import matrix</h3>
+<table>
+  <tr><th style="width:40mm">Source</th><th>Mechanism</th><th>Boundary</th></tr>
+  <tr><td>PDF / DOCX / TXT</td><td>Attach to a source record for close reading.</td><td>Local file; no upload.</td></tr>
+  <tr><td>Zotero</td><td>Local desktop connection.</td><td>Read-only import of metadata; if unavailable, use an export file.</td></tr>
+  <tr><td>Mendeley / EndNote</td><td>Exported citation files.</td><td>Metadata only.</td></tr>
+  <tr><td>Pasted citation / DOI</td><td>Paste or resolve DOI metadata.</td><td>Review before creating the record.</td></tr>
+  <tr><td>Online source</td><td>Source record with metadata; web-link metadata fetching exists.</td><td>Blocked in Air-Gapped Mode.</td></tr>
+</table>
+<p class="small">Import review and duplicate detection exist to prevent accidental duplicate records within a project.</p>
+
+<h3>10.2 Storage</h3>
+<ul>
+  <li>One local workspace folder containing the project data and local source files.</li>
+  <li>Data &amp; Storage can <strong>move</strong> a complete workspace and its source files to an empty external-drive folder, or <strong>switch</strong> to an existing workspace folder.</li>
+  <li>Also offers restoring sample projects and an intentional local-data reset.</li>
+  <li>Explicitly <em>not</em> cloud collaboration, an institutional repository, or an automatic backup strategy.</li>
+  <li>Storage engine and file layout: <span class="tag unk">UNKNOWN</span>. Encryption at rest: <span class="tag unk">UNKNOWN</span> (never claimed).</li>
+</ul>
+
+<h3>10.3 Export matrix</h3>
+<table>
+  <tr><th style="width:38mm">Output</th><th style="width:26mm">Format</th><th>Purpose</th><th style="width:46mm">Boundary</th></tr>
+  <tr><td>Research Dossier</td><td>Word / PDF</td><td>Readable project artefact for supervision, committee review, advising, submission.</td><td>Does not contain attached source files as a restorable workspace.</td></tr>
+  <tr><td>Workspace archive</td><td><code>.atelier</code></td><td>Portable, restorable workspace export.</td><td>Complete archive includes verified source documents and note images; Structure-only excludes binaries. A Complete archive fails rather than silently omitting a missing local file.</td></tr>
+  <tr><td>Preparation export</td><td>Word</td><td>Focused plan, brief, or Detailed outline.</td><td>Citations and locations must be chosen deliberately; writing happens elsewhere.</td></tr>
+  <tr><td>Journey export</td><td>Word / PDF</td><td>Process evidence.</td><td>—</td></tr>
+  <tr><td>Review export</td><td>Word</td><td>Reflection artefact.</td><td>No score, no verdict.</td></tr>
+  <tr><td>Matrix export</td><td>CSV / XLSX / clipboard</td><td>Comparison table for reuse.</td><td>Row evidence ≠ cell evidence must be preserved in downstream materials.</td></tr>
+</table>
+
+<div class="box warn">
+  <strong>The one destructive gesture.</strong> Opening a <code>.atelier</code> archive replaces the current local workspace after confirmation. The product's own guidance is to export an archive before importing another workspace. A rebuild must make this confirmation specific about what will be replaced.
+</div>
+
+<!-- ============================================================ 11 -->
+<h1>11. Functional requirements</h1>
+<p>Requirements are numbered for tracking. Each carries a one-line acceptance condition. "MUST" denotes behaviour the observed product exhibits or its documentation promises.</p>
+
+<h2 style="border:none; margin-top:5mm">Projects and workspace</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-01</td><td>A user MUST be able to create a project with a title and a guiding inquiry, without an account or network.</td><td class="ac">With no network, create a project, enter an inquiry, and reopen it after restart with both values intact.</td></tr>
+  <tr><td>FR-02</td><td>A project MUST carry its own research profile and may differ from the workspace default.</td><td class="ac">Switch a project's profile; workspace default and other projects are unchanged; existing records keep their text.</td></tr>
+  <tr><td>FR-03</td><td>The workspace MUST be movable to another folder, including an empty external-drive folder, and openable from an existing workspace folder.</td><td class="ac">Move a workspace with attachments; reopen from the new location; counts and locators unchanged.</td></tr>
+  <tr><td>FR-04</td><td>Settings MUST be grouped as Workspace, AI &amp; Privacy, and Data &amp; Storage.</td><td class="ac">All three groups are reachable and their controls take effect without an app restart.</td></tr>
+</table>
+
+<h2 style="border:none">Sources and encounter</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-05</td><td>A source record MUST support three kinds: close-reading document, online source, citation-only.</td><td class="ac">Create one of each; each is a first-class project object with notes and trail entries.</td></tr>
+  <tr><td>FR-06</td><td>A source record MUST carry a rationale (why it belongs) and a reading intent.</td><td class="ac">Both fields are editable, visible on the source card, and survive export.</td></tr>
+  <tr><td>FR-07</td><td>Source lifecycle MUST be Encountered → Engaged → Extracted → Integrated, independent of "Used in Thinking".</td><td class="ac">Advancing lifecycle does not by itself set Used in Thinking; both are reported separately.</td></tr>
+  <tr><td>FR-08</td><td>Citation ingestion MUST accept Zotero local, citation files, pasted citations and DOIs, with a review step.</td><td class="ac">Import 10 citations; a review screen lists candidates before creation; duplicates are flagged.</td></tr>
+  <tr><td>FR-09</td><td>Import MUST NOT modify external libraries, copy attachments or annotations, or promise sync.</td><td class="ac">After import, the external library's contents and attachments are byte-identical.</td></tr>
+  <tr><td>FR-10</td><td>Sources MUST be groupable into collections reusable across projects without live record sync.</td><td class="ac">Editing a source in project A does not change the same source's record inside project B.</td></tr>
+</table>
+
+<h2 style="border:none">Reading and note capture</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-11</td><td>Opening a close-reading document MUST provide Document Map, Search, Focus, Thoughts, Source Notes, display controls and session summaries.</td><td class="ac">Each surface is reachable from the reader and operates on the open document.</td></tr>
+  <tr><td>FR-12</td><td>A reading session MUST begin with a stated Reading Purpose.</td><td class="ac">Notes created in a session are attributable to that purpose; sessions can be summarised.</td></tr>
+  <tr><td>FR-13</td><td>A source note MUST retain a locator (page/region/quote) or an explicit nearest-safe fallback.</td><td class="ac">Deleting/refreshing the underlying document degrades to the note or source, never to a dead link or crash.</td></tr>
+  <tr><td>FR-14</td><td>Source notes MUST keep source content and researcher interpretation distinguishable in the data model.</td><td class="ac">A fidelity check can be computed from the record alone, without re-reading the PDF.</td></tr>
+  <tr><td>FR-15</td><td>Note types MUST come from the active profile.</td><td class="ac">Changing the project profile changes the offered note types; existing notes keep their type.</td></tr>
+</table>
+
+<h2 style="border:none">Comparison, synthesis and structure</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-16</td><td>The Literature Matrix MUST provide Source Analysis and Comparative Matrix surfaces with the four lenses.</td><td class="ac">Both surfaces open; Argument, Approach, Relevance and Notes are selectable.</td></tr>
+  <tr><td>FR-17</td><td>Matrix columns MUST be profile-aware and cells MUST be editable, refreshable from source notes, and augmentable manually.</td><td class="ac">Refresh populates cells from notes; manual text is not silently overwritten without indication.</td></tr>
+  <tr><td>FR-18</td><td>Matrix provenance MUST be row-level and MUST NOT be presented as cell-level.</td><td class="ac">Any provenance UI or export attributes evidence to the row; no per-cell citation UI exists.</td></tr>
+  <tr><td>FR-19</td><td>Matrix MUST export to CSV, XLSX and a formatted clipboard table.</td><td class="ac">All three outputs open outside the app with the same rows and columns.</td></tr>
+  <tr><td>FR-20</td><td>A synthesis note MUST record its selected evidence and its origin (researcher, AI-assisted, imported).</td><td class="ac">The origin is visible after reload and reflected in exports.</td></tr>
+  <tr><td>FR-21</td><td>Concepts MUST be searchable, support alternate names, and expose "Appears in" context.</td><td class="ac">Searching an alternate name finds the concept; Appears in lists the relying records.</td></tr>
+  <tr><td>FR-22</td><td>Relations MUST be limited to Supports, Adds tension, Challenges, Gives an example, and MUST carry an optional rationale.</td><td class="ac">No fifth label exists; no relation is created without a user action.</td></tr>
+  <tr><td>FR-23</td><td>The system MUST NOT infer relations from lexical overlap or topical similarity.</td><td class="ac">Two notes sharing every word produce no relation unless a user creates one.</td></tr>
+  <tr><td>FR-24</td><td>Open questions MUST support four statuses, List and Board views, evidence, notes, and inclusion in a plan.</td><td class="ac">A question moved on the board changes status consistently in both views.</td></tr>
+</table>
+
+<h2 style="border:none">Preparation, review and journey</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-25</td><td>Preparation MUST be a three-step flow (Choose material → Shape direction → Review &amp; export) with an optional Detailed outline.</td><td class="ac">A plan can be built, revisited and exported to Word.</td></tr>
+  <tr><td>FR-26</td><td>A plan MUST let the user choose synthesis notes, source notes, sources, concepts, relations and questions.</td><td class="ac">Each selected item appears in the exported plan with its citation/locator where applicable.</td></tr>
+  <tr><td>FR-27</td><td>Project Review MUST gather reflective evidence without producing a score or completion verdict.</td><td class="ac">No numeric score or "complete" state exists anywhere in Review or its export.</td></tr>
+  <tr><td>FR-28</td><td>Research Journey MUST present eight connected stages and export to Word/PDF.</td><td class="ac">Both exports render the same stages and current position.</td></tr>
+</table>
+
+<h2 style="border:none">AI</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-29</td><td>AI MUST be off or absent until the researcher runs a named action.</td><td class="ac">With AI enabled and idle, no outbound request occurs.</td></tr>
+  <tr><td>FR-30</td><td>Each action MUST send only its declared context, and request preview MUST be able to show it first.</td><td class="ac">With preview on, the exact payload is displayed before confirmation; cancelling sends nothing.</td></tr>
+  <tr><td>FR-31</td><td>Each action MUST return a reading from its fixed vocabulary.</td><td class="ac">Fidelity returns exactly one of Separable/Blended/Transcription; adherence one of On purpose/Redirected/Diffuse.</td></tr>
+  <tr><td>FR-32</td><td>AI MUST NOT write the synthesis note, a replacement sentence, or paper text.</td><td class="ac">No AI output path inserts text into a synthesis, plan or document body.</td></tr>
+  <tr><td>FR-33</td><td>AI MUST NOT fabricate quotations, pages, locators, dates or bibliographic details.</td><td class="ac">With provenance missing, output states the gap and asks for verification.</td></tr>
+  <tr><td>FR-34</td><td>Every action MUST be recorded in an AI ledger with outcome and the researcher's decision.</td><td class="ac">The ledger lists one entry per action; entries survive restart and are exportable.</td></tr>
+  <tr><td>FR-35</td><td>Routing MUST support built-in service, BYOK (verified before activation), local loopback, and Air-Gapped Mode.</td><td class="ac">In Air-Gapped Mode every non-loopback egress, including link metadata fetching, is blocked.</td></tr>
+  <tr><td>FR-36</td><td>AI MUST be switchable off entirely.</td><td class="ac">With AI off, no AI entry point is actionable and no network call is attempted.</td></tr>
+</table>
+
+<h2 style="border:none">Continuity and export</h2>
+<table class="fr">
+  <tr><th style="width:14mm">ID</th><th>Requirement</th><th style="width:74mm">Acceptance</th></tr>
+  <tr><td>FR-37</td><td>Readable Dossier export and restorable <code>.atelier</code> archive MUST be distinct, clearly labelled outputs.</td><td class="ac">UI and file names never present a Dossier as a backup or an archive as a readable report.</td></tr>
+  <tr><td>FR-38</td><td>A Complete archive MUST fail loudly if a referenced local file is missing; Structure-only MUST omit binaries by design.</td><td class="ac">Remove an attached PDF, export Complete → explicit error naming the file; Structure-only → succeeds without it.</td></tr>
+  <tr><td>FR-39</td><td>Opening an archive MUST replace the current workspace only after a specific confirmation.</td><td class="ac">Confirmation names what will be replaced; cancelling leaves the workspace untouched.</td></tr>
+  <tr><td>FR-40</td><td>Go to… (⌘K/Ctrl+K) MUST search stored research across projects and MUST NOT create, alter or execute anything.</td><td class="ac">Results across projects and object types; no command palette actions; opening a result navigates only.</td></tr>
+</table>
+
+<!-- ============================================================ 12 -->
+<h1>12. Non-functional requirements and posture</h1>
+<table>
+  <tr><th style="width:34mm">Area</th><th>Requirement</th><th style="width:20mm">Basis</th></tr>
+  <tr><td>Local-first</td><td>Core work — projects, sources, notes, synthesis, concepts, preparation, review, exports — completes with no account and no network.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Portability</td><td>Workspace can live on removable storage and be moved between machines by folder or archive.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Integrity over convenience</td><td>Fail loudly rather than silently omit data (Complete archive behaviour).</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Language</td><td>Multilingual research text with direction-aware presentation; English UI; AI in project language.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Accessibility</td><td>No formal compliance claimed. Practical keyboard access exists (⌘K, ⌘S, ⇧⌘S).</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Performance</td><td>Not published. Large-project limits, index strategy and memory behaviour are unknown.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Security</td><td>No at-rest encryption claim; no account means no server-side identity. Device and backup protection is the user's.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Privacy</td><td>No ad tracking; no research upload; AI context scoped per action; no provider key stored in-app.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+  <tr><td>Offline AI</td><td>Local loopback endpoints permit AI without egress; Air-Gapped enforces it.</td><td><span class="tag obs">OBSERVED</span></td></tr>
+</table>
+
+<!-- ============================================================ 13 -->
+<h1>13. Interface and design observations</h1>
+<ul>
+  <li><strong>Two themes</strong> — a Paper and a Dark appearance, switched from the site and reflected in app screenshots ("Dark theme" variants of each tour screen).</li>
+  <li><strong>Typography scale</strong> — a workspace-level setting, exposed in Settings → Workspace.</li>
+  <li><strong>Screen capture convention</strong> — the tour presents ten screens "each shown complete in its natural aspect ratio", which implies dense, information-rich layouts rather than guided wizards. <span class="tag inf">INFERRED</span></li>
+  <li><strong>Card-based object presentation</strong> — source cards carry rationale, contributions and status; matrix rows carry evidence; review carries dimensions.</li>
+  <li><strong>Method made visible</strong> — the interface repeatedly surfaces "where am I / what next": pathway on Project Home, next useful move, Journey stages, Review's recommended focus.</li>
+  <li><strong>No chat surface</strong> — AI appears as named actions bound to objects rather than as a conversation. This is the single largest interface departure from mainstream AI products and should be preserved in any rebuild.</li>
+  <li><strong>Documentation as product</strong> — a researcher manual, teaching toolkit, student handbook and eight task-based tutorials ship alongside the app.</li>
+</ul>
+
+<!-- ============================================================ 14 -->
+<h1>14. Gaps, risks and unknowns</h1>
+
+<h3>14.1 Unknowns a rebuild must decide</h3>
+<table>
+  <tr><th style="width:44mm">Question</th><th>Why it matters</th><th style="width:26mm">Status</th></tr>
+  <tr><td>Storage engine and file layout</td><td>Determines migration, backup and corruption-recovery strategy.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Encryption at rest</td><td>Never claimed; a scholarly workspace on a shared device may need it.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Ten of thirteen AI actions</td><td>Only three verdict vocabularies are public.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Eight Journey stage names</td><td>Needed for faithful Journey rendering and exports.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Concurrency and multi-window behaviour</td><td>Two app instances on one workspace could corrupt data.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>Large-project performance</td><td>Matrix and Trail are cross-object views; cost grows with notes × sources.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+  <tr><td>iPad parity</td><td>Marketed as one universal app; feature parity unstated.</td><td><span class="tag unk">UNKNOWN</span></td></tr>
+</table>
+
+<h3>14.2 Product risks worth designing against</h3>
+<table>
+  <tr><th style="width:40mm">Risk</th><th>Mitigation implied by the product's own design</th></tr>
+  <tr><td>Method burden — twelve surfaces before any writing</td><td>Project Home reduces the model to one next move; templates and sample projects lower the first-run cost.</td></tr>
+  <tr><td>Rationale theatre — fields filled to satisfy the tool</td><td>Rationale feeds grounding observations and Trail, so an empty reason becomes visible work rather than a passed checkbox.</td></tr>
+  <tr><td>Verdict over-trust — treating readings as grades</td><td>Fixed three-value vocabularies; "returns a reading for you to judge"; explicit "not a score" stance in Review.</td></tr>
+  <tr><td>Data loss on archive import</td><td>Confirmation before replacement; the manual instructs exporting first.</td></tr>
+  <tr><td>Vendor dependence for AI</td><td>BYOK, local loopback, air-gap, and a full off switch.</td></tr>
+</table>
+
+<!-- ============================================================ 15 -->
+<h1>15. Rebuild sequencing</h1>
+<p>A defensible build order that preserves the product's differentiating idea at every stage. Each milestone is independently useful.</p>
+
+<table>
+  <tr><th style="width:20mm">Milestone</th><th>Scope</th><th style="width:60mm">Why here</th></tr>
+  <tr><td><strong>M1 — Encounter</strong></td><td>Project + inquiry, sources with rationale/intent/status, attachment, list and detail, local store, plain export.</td><td>The rationale field is the cheapest differentiator: it makes the rest of the method meaningful.</td></tr>
+  <tr><td><strong>M2 — Engage</strong></td><td>Reader with locators, reading purpose, source notes with typed fields, note↔passage binding, enjoyable fallback.</td><td>Without locators nothing downstream can be traced.</td></tr>
+  <tr><td><strong>M3 — Checks</strong></td><td>Fidelity and adherence readings, deterministic first, model-optional; every reading logged.</td><td>Proves the AI posture with the least machinery and no cloud dependency.</td></tr>
+  <tr><td><strong>M4 — Compare</strong></td><td>Literature Matrix with profile-aware columns, row evidence, CSV/XLSX export.</td><td>Comparison is the first place separate sources become one argument.</td></tr>
+  <tr><td><strong>M5 — Structure</strong></td><td>Concepts, four-label relations with rationale, open questions with statuses.</td><td>The framework layer; deliberately last among synthesis pieces so it is earned by reading.</td></tr>
+  <tr><td><strong>M6 — Integrate</strong></td><td>Preparation three-step plan, Detailed outline, Dossier/plan exports.</td><td>Turns the workspace into an output without becoming a writing tool.</td></tr>
+  <tr><td><strong>M7 — Continuity</strong></td><td><code>.atelier</code> archive (Complete/Structure-only), workspace move, Go to…, Journey, Review.</td><td>Trust and portability arrive once there is something worth losing.</td></tr>
+</table>
+
+<div class="box">
+  <strong>Scope cuts that survive.</strong> Research profiles, collections, Zotero import, Board view, and the Journey export are all additive presentation or ingestion layers. Deferring them does not damage the core loop; deferring <em>locators</em>, <em>rationale</em> or the <em>ledger</em> would.
+</div>
+
+<!-- ============================================================ APPENDIX A -->
+<h1>Appendix A — Vocabulary reference</h1>
+<table>
+  <tr><th style="width:40mm">Term</th><th>Meaning as the product uses it</th></tr>
+  <tr><td>Guiding inquiry</td><td>The project's working question, one or two sentences, expected to change.</td></tr>
+  <tr><td>Reading purpose</td><td>Why this session with this source; the anchor for adherence readings.</td></tr>
+  <tr><td>Rationale</td><td>Why a source belongs in the project.</td></tr>
+  <tr><td>Reading intent</td><td>What the researcher expects to obtain from the source before reading it.</td></tr>
+  <tr><td>Used in Thinking</td><td>Deliberate signal that material was carried into project structure — distinct from lifecycle status.</td></tr>
+  <tr><td>Locator</td><td>Page/region/quote that returns to the exact place in the source.</td></tr>
+  <tr><td>Research trail</td><td>Forward and reverse context linking a source to its use.</td></tr>
+  <tr><td>Grounding</td><td>Whether a claim, concept, relation or plan statement is visibly connected to sources.</td></tr>
+  <tr><td>Fidelity</td><td>Whether the researcher's words remain separable from the source's words.</td></tr>
+  <tr><td>Dossier</td><td>Readable Word/PDF project artefact.</td></tr>
+  <tr><td>Workspace archive</td><td>Restorable <code>.atelier</code> export; Complete or Structure-only.</td></tr>
+  <tr><td>Air-Gapped Mode</td><td>No outbound connections; AI only via loopback.</td></tr>
+</table>
+
+<!-- ============================================================ APPENDIX B -->
+<h1>Appendix B — Evidence map</h1>
+<table>
+  <tr><th style="width:56mm">Claim in this document</th><th>Evidence</th></tr>
+  <tr><td>Ten tour screens and their captions</td><td>Product tour, atelierworkspace.com</td></tr>
+  <tr><td>Four-stage loop and its verbs</td><td>Product tour (The Atelier Loop); manual p.4</td></tr>
+  <tr><td>AI check names, verdict vocabularies, fixed limits</td><td>Product tour (AI Assistance); manual p.17</td></tr>
+  <tr><td>13 actions across four moments</td><td>Product tour counters: While reading 3, synthesizing 3, comparing 3, deciding direction 4</td></tr>
+  <tr><td>Settings groups, six profiles, profile-scoped labels</td><td>Manual pp.5–6</td></tr>
+  <tr><td>Source kinds, statuses, collections, import paths</td><td>Manual pp.6–7</td></tr>
+  <tr><td>Reader surfaces and locator fallback</td><td>Manual p.8</td></tr>
+  <tr><td>Matrix lenses, editing, exports, row-evidence caveat</td><td>Manual p.9</td></tr>
+  <tr><td>Synthesis evidence types and origins</td><td>Manual p.10</td></tr>
+  <tr><td>Four relation labels; no auto-inference</td><td>Manual pp.10–11</td></tr>
+  <tr><td>Question statuses, List/Board</td><td>Manual p.11</td></tr>
+  <tr><td>Preparation steps, Journey eight stages, Review without score</td><td>Manual pp.12–14</td></tr>
+  <tr><td>Export matrix, archive semantics, ⌘S / ⇧⌘S, import replaces workspace</td><td>Manual pp.15–16</td></tr>
+  <tr><td>AI routes, request preview, air-gap definition</td><td>Manual p.17</td></tr>
+  <tr><td>Go to… scope and read-only nature</td><td>Manual p.18</td></tr>
+  <tr><td>No account; managed AI uses Google Gemini; no key stored; deletion scope</td><td>Privacy policy, June 2026</td></tr>
+  <tr><td>Free pricing; macOS/iPadOS/Windows; Folio as separate app</td><td>Site download and companion sections</td></tr>
+  <tr><td>No formal accessibility compliance claim</td><td>FAQ</td></tr>
+  <tr><td>Storage engine, encryption, ten action definitions, Journey stage names</td><td><em>Not public</em> — marked UNKNOWN</td></tr>
+</table>
+
+<p class="meta" style="margin-top:8mm">End of document · Atelier reverse-engineered PRD v1.0 · 20 November 2026. Derived solely from published product information; no proprietary code or assets were used.</p>
+
+</body>
+</html>

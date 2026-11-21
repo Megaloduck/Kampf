@@ -15,32 +15,37 @@
                 Padding="16,10"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Spacing="10">
+            <WrapPanel Orientation="Horizontal">
                 <ComboBox Width="126"
+                          Margin="0,0,10,6"
                           ItemsSource="{Binding SourceFilters}"
                           SelectedItem="{Binding SourceFilter, Mode=TwoWay}"
                           ToolTip.Tip="Show notes only, papers only, or both"/>
                 <ComboBox Width="130"
+                          Margin="0,0,10,6"
                           ItemsSource="{Binding TagFilters}"
                           SelectedItem="{Binding TagFilter, Mode=TwoWay}"
                           ToolTip.Tip="Keep only notes carrying this tag"/>
                 <ComboBox Width="112"
+                          Margin="0,0,10,6"
                           ItemsSource="{Binding YearFilters}"
                           SelectedItem="{Binding YearFilter, Mode=TwoWay}"
                           ToolTip.Tip="Keep papers of one year and the notes taken from them"/>
                 <ComboBox Width="140"
+                          Margin="0,0,10,6"
                           ItemsSource="{Binding AuthorFilters}"
                           SelectedItem="{Binding AuthorFilter, Mode=TwoWay}"
                           ToolTip.Tip="Keep papers by one author and the notes taken from them"/>
                 <CheckBox Content="Unreviewed"
+                          Margin="0,0,10,6"
                           IsChecked="{Binding UnreviewedOnly, Mode=TwoWay}"
                           VerticalAlignment="Center"
                           ToolTip.Tip="Show only the notes the review queue is asking about"/>
                 <TextBlock Text="Click to inspect · double-click to open · drag to arrange · scroll to zoom"
                            Classes="meta"
                            VerticalAlignment="Center"
-                           Margin="4,0,0,0"/>
-            </StackPanel>
+                           Margin="4,0,0,6"/>
+            </WrapPanel>
         </Border>
 
         <controls:GraphControl Grid.Row="1"
@@ -51,11 +56,11 @@
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="18,0,18,10">
             <TextBlock Text="{Binding VaultPath}"
                        Classes="meta"
-                       FontSize="10"/>
+                       FontSize="12"/>
             <TextBlock Grid.Column="1"
                        Text="{Binding GraphSummary}"
                        Classes="meta"
-                       FontSize="10"/>
+                       FontSize="12"/>
         </Grid>
     </Grid>
 </UserControl>

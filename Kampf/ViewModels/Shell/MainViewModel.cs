@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
@@ -23,6 +24,7 @@ using Kampf.Domain.Entities;
 using Kampf.Domain.ValueObjects;
 using Kampf.Infrastructure;
 using Kampf.Infrastructure.Ai;
+using Kampf.Services;
 
 namespace Kampf.ViewModels;
 
@@ -66,6 +68,19 @@ public partial class MainViewModel : ViewModelBase
     private readonly DocumentPageIndex _pageIndex;
     private readonly IPdfPageRenderer _renderer;
     private readonly Dictionary<string, IReadOnlyList<PageViewModel>> _pageCache = new(StringComparer.Ordinal);
+
+    /// <summary>Papers whose metadata has been seen once; later opens start folded.</summary>
+    private readonly HashSet<string> _seenDocuments;
+
+    /// <summary>Writes the editor after a typing pause, so a crash costs seconds, not the note.</summary>
+    private CancellationTokenSource? _autosaveCts;
+
+    /// <summary>A permanent delete waiting out its undo window.</summary>
+    private PendingPurge? _pendingPurge;
+
+    private bool _settingStatus;
+
+    private sealed record PendingPurge(TrashRowViewModel Row, CancellationTokenSource Cancellation);
 
     /// <summary>Cancels the page rendering of the paper that was open before this one.</summary>
     private CancellationTokenSource? _renderCts;
@@ -149,6 +164,9 @@ public partial class MainViewModel : ViewModelBase
         var settings = AppSettings.Load(vault.RootPath);
         IsDarkTheme = settings.IsDarkTheme;
         _folders = settings.Folders?.ToList() ?? new List<string>();
+        _seenDocuments = new HashSet<string>(
+            settings.SeenDocuments ?? Array.Empty<string>(),
+            StringComparer.Ordinal);
 
         // Show whatever Settings saved last time, so the fields match the model
         // that is actually answering.
@@ -184,6 +202,15 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Folder chooser for publishing a static copy of the vault.</summary>
     public Func<Task<string?>>? PickPublishFolder { get; set; }
 
+    /// <summary>Shows the one shared confirmation dialog; null in tests, where it refuses.</summary>
+    public Func<ConfirmRequest, Task<bool>>? Confirm { get; set; }
+
+    /// <summary>Opens a folder with the platform's file manager.</summary>
+    public Func<string, Task>? OpenFolder { get; set; }
+
+    private Task<bool> AskAsync(ConfirmRequest request) =>
+        Confirm is null ? Task.FromResult(false) : Confirm(request);
+
     public string VaultPath { get; }
 
     public ObservableCollection<NoteRowViewModel> Notes { get; } = new();
@@ -202,6 +229,80 @@ public partial class MainViewModel : ViewModelBase
     // ------------------------------------------------------------- shell state
 
     [ObservableProperty] private string _statusMessage = "Opening vault\u2026";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatusAction))]
+    private string _statusActionLabel = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatusAction))]
+    private ICommand? _statusActionCommand;
+
+    public bool HasStatusAction => StatusActionLabel.Length > 0 && StatusActionCommand is not null;
+
+    private CancellationTokenSource? _statusCts;
+
+    /// <summary>
+    /// Reports a result in the footer, optionally with one action that expires
+    /// (Undo after a permanent delete). Direct <see cref="StatusMessage"/> writes
+    /// clear a stale action, so a message never offers a command for something
+    /// that already happened.
+    /// </summary>
+    public void ShowStatus(string message, string? actionLabel = null, ICommand? action = null, TimeSpan? duration = null)
+    {
+        _statusCts?.Cancel();
+        _statusCts?.Dispose();
+        _statusCts = null;
+
+        _settingStatus = true;
+        StatusMessage = message;
+        _settingStatus = false;
+
+        // A permanent delete is still undoable: unrelated progress messages must
+        // not replace its Undo action before the window closes.
+        if (_pendingPurge is not null && action is null)
+            return;
+
+        StatusActionLabel = actionLabel ?? string.Empty;
+        StatusActionCommand = action;
+
+        if (actionLabel is null || duration is null)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _statusCts = cts;
+        _ = ClearStatusActionAsync(duration.Value, cts.Token);
+    }
+
+    public void ReportError(string message) => ShowStatus(message);
+
+    private async Task ClearStatusActionAsync(TimeSpan delay, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(delay, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested)
+            return;
+
+        StatusActionLabel = string.Empty;
+        StatusActionCommand = null;
+    }
+
+    partial void OnStatusMessageChanged(string value)
+    {
+        if (_settingStatus || _pendingPurge is not null)
+            return;
+
+        _statusCts?.Cancel();
+        StatusActionLabel = string.Empty;
+        StatusActionCommand = null;
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ThemeButtonLabel))]
@@ -520,6 +621,21 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        var confirmed = await AskAsync(new ConfirmRequest(
+            "Encrypt this vault?",
+            "The database is rewritten under your passphrase. Read the consequences before continuing.",
+            "Encrypt vault",
+            Details: new[]
+            {
+                "Notes, tags, links, highlights, embeddings and chat history are encrypted.",
+                "Markdown mirrors in notes/ are deleted; they would expose note bodies.",
+                "PDFs in assets/ stay readable files.",
+                "There is no recovery if you forget the passphrase.",
+            }));
+
+        if (!confirmed)
+            return;
+
         IsSecurityBusy = true;
         SettingsError = string.Empty;
         SettingsMessage = "Encrypting the vault\u2026";
@@ -540,7 +656,7 @@ public partial class MainViewModel : ViewModelBase
         finally
         {
             IsSecurityBusy = false;
-            SyncSecurityState();
+                SyncSecurityState();
         }
     }
 
@@ -596,6 +712,20 @@ public partial class MainViewModel : ViewModelBase
             SettingsError = "Enter the vault passphrase to turn encryption off.";
             return;
         }
+
+        var confirmed = await AskAsync(new ConfirmRequest(
+            "Turn encryption off?",
+            "The database becomes a plaintext SQLite file again.",
+            "Turn off encryption",
+            Details: new[]
+            {
+                "The database, its search index and chat history are readable on disk.",
+                "Markdown mirrors are recreated for every note.",
+                "Backups keep the form they were taken in.",
+            }));
+
+        if (!confirmed)
+            return;
 
         IsSecurityBusy = true;
         SettingsError = string.Empty;
@@ -1167,6 +1297,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _editorBody = string.Empty;
     [ObservableProperty] private string _editorTags = string.Empty;
     [ObservableProperty] private string _editorMeta = string.Empty;
+    [ObservableProperty] private string _editorStats = string.Empty;
+    [ObservableProperty] private bool _readerInfoExpanded = true;
     [ObservableProperty] private string _provenanceText = string.Empty;
     [ObservableProperty] private string _backlinksText = string.Empty;
     [ObservableProperty] private bool _isDirty;
@@ -1177,20 +1309,83 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnEditorTitleChanged(string value)
     {
-        if (!_suppressEditor)
-            IsDirty = true;
+        if (_suppressEditor)
+            return;
+
+        IsDirty = true;
+        ScheduleAutosave();
     }
 
     partial void OnEditorBodyChanged(string value)
     {
-        if (!_suppressEditor)
-            IsDirty = true;
+        EditorStats = DescribeStats(value);
+
+        if (_suppressEditor)
+            return;
+
+        IsDirty = true;
+        ScheduleAutosave();
     }
 
     partial void OnEditorTagsChanged(string value)
     {
-        if (!_suppressEditor)
-            IsDirty = true;
+        if (_suppressEditor)
+            return;
+
+        IsDirty = true;
+        ScheduleAutosave();
+    }
+
+    private static string DescribeStats(string body)
+    {
+        if (string.IsNullOrEmpty(body))
+            return "0 words \u00b7 0 characters";
+
+        var words = body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        return $"{words} words \u00b7 {body.Length} characters";
+    }
+
+    /// <summary>
+    /// A pause in typing writes the note. The timer is restarted on every edit,
+    /// so a fast typist never triggers a save per keystroke.
+    /// </summary>
+    private void ScheduleAutosave()
+    {
+        if (_suppressEditor || _editingNoteId is null || !IsDirty)
+            return;
+
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _autosaveCts = cts;
+        _ = AutosaveAfterDelayAsync(cts.Token);
+    }
+
+    private async Task AutosaveAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(1500, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested || _editingNoteId is null || !IsDirty || IsBusy)
+            return;
+
+        var saved = await SaveEditorIfDirtyAsync();
+        if (saved && !IsDirty)
+            ShowStatus("Saved automatically.");
+    }
+
+    private void CancelAutosave()
+    {
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        _autosaveCts = null;
     }
 
     // --------------------------------------------------------------- lifecycle
@@ -1347,6 +1542,20 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             StatusMessage = "The folder exists for this session but could not be saved: " + ex.Message;
+        }
+    }
+
+    /// <summary>Remembers which papers have been opened, so their details fold away.</summary>
+    private void SaveSeenDocuments()
+    {
+        try
+        {
+            var seen = _seenDocuments.TakeLast(200).ToList();
+            (AppSettings.Load(_vault.RootPath) with { SeenDocuments = seen }).Save(_vault.RootPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A preference that cannot be written is not worth interrupting reading.
         }
     }
 
@@ -1575,7 +1784,6 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty] private string _trashSummary = "The trash bin is empty.";
     [ObservableProperty] private bool _hasTrash;
-    [ObservableProperty] private bool _confirmEmptyTrash;
 
     /// <summary>The deleted rows themselves, kept so restore and purge act on them.</summary>
     private readonly List<Note> _trashedNotes = new();
@@ -1611,7 +1819,6 @@ public partial class MainViewModel : ViewModelBase
                 TrashRows.Add(row);
 
             HasTrash = TrashRows.Count > 0;
-            ConfirmEmptyTrash = false;
             TrashSummary = HasTrash
                 ? $"{notes.Count} note(s) and {documents.Count} paper(s) deleted. Restoring a note puts it back in its folder."
                 : "The trash bin is empty. Deleting a note or a paper moves it here first.";
@@ -1658,42 +1865,129 @@ public partial class MainViewModel : ViewModelBase
 
     private void DeleteFromTrashForever(TrashRowViewModel row) => _ = DeleteFromTrashForeverAsync(row);
 
+    /// <summary>
+    /// A permanent delete asks once, then holds the item for ten seconds so it
+    /// can be undone. The row stays in the database until the window expires;
+    /// closing the app during the window leaves it in the Trash.
+    /// </summary>
     private async Task DeleteFromTrashForeverAsync(TrashRowViewModel row)
+    {
+        if (_pendingPurge is not null)
+            await CommitPendingPurgeAsync();
+
+        var confirmed = await AskAsync(new ConfirmRequest(
+            $"Delete \u201c{row.Title}\u201d permanently?",
+            row.IsPaper
+                ? "The stored PDF and everything derived from it are removed."
+                : "The note and its place in the graph are removed.",
+            "Delete forever",
+            IsDanger: true,
+            Details: row.IsPaper
+                ? new[] { "Page text, vectors, highlights and graph edges go with it.", "This cannot be undone." }
+                : new[] { "Its tags and links go with it.", "This cannot be undone." }));
+
+        if (!confirmed)
+            return;
+
+        TrashRows.Remove(row);
+        HasTrash = TrashRows.Count > 0;
+
+        var cts = new CancellationTokenSource();
+        _pendingPurge = new PendingPurge(row, cts);
+
+        ShowStatus($"\u201c{row.Title}\u201d deleted.", "Undo", new RelayCommand(UndoPendingPermanentDelete), TimeSpan.FromSeconds(10));
+        _ = PurgeAfterDelayAsync(cts.Token);
+    }
+
+    private async Task PurgeAfterDelayAsync(CancellationToken ct)
     {
         try
         {
-            if (row.IsPaper)
-            {
-                var document = _trashedDocuments.FirstOrDefault(d => d.Id == row.Id);
-                if (document is null)
-                    return;
+            await Task.Delay(TimeSpan.FromSeconds(10), ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
 
-                // The permanent path: the row, its pages, highlights and the PDF go.
-                await _importService.DeleteDocumentAsync(document);
-                _pageCache.Remove(document.Id);
-                _vault.PageRenderer.Forget(document.FilePath);
-            }
-            else
-            {
-                var note = _trashedNotes.FirstOrDefault(n => n.Id == row.Id);
-                if (note is null)
-                    return;
+        if (ct.IsCancellationRequested)
+            return;
 
-                await _noteService.DeleteAsync(note.Id);
-            }
+        await CommitPendingPurgeAsync();
+    }
 
-            await RefreshAsync();
-            StatusMessage = $"\u201c{row.Title}\u201d was deleted for good.";
+    private async Task CommitPendingPurgeAsync()
+    {
+        var pending = _pendingPurge;
+        if (pending is null)
+            return;
+
+        _pendingPurge = null;
+        pending.Cancellation.Dispose();
+
+        try
+        {
+            await DeleteRowNowAsync(pending.Row);
+            await RefreshTrashAsync();
+            UpdateCounts();
+            ShowStatus($"\u201c{pending.Row.Title}\u201d was deleted for good.");
         }
         catch (Exception ex)
         {
-            StatusMessage = "Could not delete: " + ex.Message;
+            await RefreshTrashAsync();
+            StatusActionLabel = string.Empty;
+            StatusActionCommand = null;
+            ReportError("Could not delete: " + ex.Message);
         }
     }
 
-    /// <summary>Empties the bin, asking once first: it is the only permanent delete left.</summary>
+    private async Task DeleteRowNowAsync(TrashRowViewModel row)
+    {
+        if (row.IsPaper)
+        {
+            var document = _trashedDocuments.FirstOrDefault(d => d.Id == row.Id);
+            if (document is null)
+                return;
+
+            await _importService.DeleteDocumentAsync(document);
+            _pageCache.Remove(document.Id);
+            _vault.PageRenderer.Forget(document.FilePath);
+            return;
+        }
+
+        var note = _trashedNotes.FirstOrDefault(n => n.Id == row.Id);
+        if (note is not null)
+            await _noteService.DeleteAsync(note.Id);
+    }
+
+    private void UndoPendingPermanentDelete()
+    {
+        var pending = _pendingPurge;
+        if (pending is null)
+            return;
+
+        _pendingPurge = null;
+        pending.Cancellation.Cancel();
+        pending.Cancellation.Dispose();
+
+        _ = RefreshTrashAsync();
+        ShowStatus("Deletion undone \u2014 the item is back in the Trash.");
+    }
+
+    /// <summary>Called while closing: never purge an item the user could still restore.</summary>
+    public void CancelPendingPermanentDelete()
+    {
+        if (_pendingPurge is null)
+            return;
+
+        _pendingPurge.Cancellation.Cancel();
+        _pendingPurge.Cancellation.Dispose();
+        _pendingPurge = null;
+    }
+
+    /// <summary>Empties the bin after naming the count and the consequence.</summary>
     [RelayCommand]
-    private void EmptyTrash()
+    private async Task EmptyTrashAsync()
     {
         if (!HasTrash)
         {
@@ -1701,23 +1995,21 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        if (!ConfirmEmptyTrash)
-        {
-            ConfirmEmptyTrash = true;
-            StatusMessage = $"Emptying the trash deletes {TrashRows.Count} item(s) for good. Click Empty trash again to confirm.";
+        var notes = _trashedNotes.ToList();
+        var documents = _trashedDocuments.ToList();
+
+        var confirmed = await AskAsync(new ConfirmRequest(
+            "Empty the trash?",
+            $"{notes.Count} note(s) and {documents.Count} paper(s) will be deleted permanently.",
+            "Empty trash",
+            IsDanger: true,
+            Details: new[] { "Stored PDFs and page text are removed with their papers.", "This cannot be undone." }));
+
+        if (!confirmed)
             return;
-        }
 
-        _ = EmptyTrashAsync();
-    }
-
-    private async Task EmptyTrashAsync()
-    {
         try
         {
-            var notes = _trashedNotes.ToList();
-            var documents = _trashedDocuments.ToList();
-
             // Notes first, so a paper's page anchors are gone before its rows are.
             foreach (var note in notes)
                 await _noteService.DeleteAsync(note.Id);
@@ -1730,11 +2022,11 @@ public partial class MainViewModel : ViewModelBase
             }
 
             await RefreshAsync();
-            StatusMessage = $"Trash emptied \u2014 {notes.Count} note(s) and {documents.Count} paper(s) deleted.";
+            ShowStatus($"Trash emptied \u2014 {notes.Count} note(s) and {documents.Count} paper(s) deleted.");
         }
         catch (Exception ex)
         {
-            StatusMessage = "Could not empty the trash: " + ex.Message;
+            ReportError("Could not empty the trash: " + ex.Message);
         }
     }
 
@@ -1757,9 +2049,26 @@ public partial class MainViewModel : ViewModelBase
     {
         try
         {
+            // The navigator files a note under its first tag. Deleting a folder
+            // must follow the same rule, or a note shown under "methods" would
+            // disappear when the "graph" folder is deleted.
             var notes = _allNotes
-                .Where(n => n.Tags.Any(t => t.Name.Equals(title, StringComparison.OrdinalIgnoreCase)))
+                .Where(n => n.Tags.Count > 0 &&
+                            n.Tags[0].Name.Equals(title, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+
+            var empty = notes.Count == 0;
+
+            var confirmed = await AskAsync(new ConfirmRequest(
+                empty ? $"Remove folder \u201c{title}\u201d?" : $"Delete folder \u201c{title}\u201d?",
+                empty
+                    ? "The folder is empty and only the folder itself is removed."
+                    : $"{notes.Count} note(s) will move to the Trash. They keep their tags, so restoring one brings the folder back.",
+                empty ? "Remove folder" : $"Move {notes.Count} note(s) to Trash",
+                IsDanger: !empty));
+
+            if (!confirmed)
+                return;
 
             foreach (var note in notes)
                 await _noteService.TrashAsync(note);
@@ -1779,13 +2088,13 @@ public partial class MainViewModel : ViewModelBase
             }
 
             await RefreshAsync();
-            StatusMessage = notes.Count == 0
+            ShowStatus(notes.Count == 0
                 ? $"Folder \u201c{title}\u201d removed."
-                : $"Folder \u201c{title}\u201d deleted \u2014 {notes.Count} note(s) moved to the trash.";
+                : $"Folder \u201c{title}\u201d deleted \u2014 {notes.Count} note(s) moved to the Trash.");
         }
         catch (Exception ex)
         {
-            StatusMessage = "Could not delete folder: " + ex.Message;
+            ReportError("Could not delete folder: " + ex.Message);
         }
     }
 
@@ -2100,6 +2409,21 @@ public partial class MainViewModel : ViewModelBase
         if (_editingNoteId is not null)
             SelectNoteById(_editingNoteId);
         StatusMessage = "Saved.";
+    }
+
+    /// <summary>
+    /// The close path: true when there was nothing to save or the note was
+    /// written, false when the save failed and the text is still only in memory.
+    /// </summary>
+    public async Task<bool> SaveForCloseAsync()
+    {
+        CancelAutosave();
+
+        if (_editingNoteId is null || !IsDirty)
+            return true;
+
+        await SaveEditorIfDirtyAsync();
+        return !IsDirty;
     }
 
     /// <summary>Persists the editor when it has unsaved changes.</summary>
@@ -2457,8 +2781,88 @@ public partial class MainViewModel : ViewModelBase
         await EstimateModelFitAsync();
     }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBackupMessage))]
+    private string _backupMessage = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBackupError))]
+    private string _backupError = string.Empty;
+
+    [ObservableProperty] private string _lastBackupLabel = "No backup yet";
+
+    public bool HasBackupMessage => BackupMessage.Length > 0;
+    public bool HasBackupError => BackupError.Length > 0;
+    public string BackupFolder => Path.Combine(VaultPath, "backups");
+
     [RelayCommand]
-    private void ShowDataSharing() => View = VaultView.DataSharing;
+    private async Task BackupNowAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        BackupError = string.Empty;
+        BackupMessage = "Backing up\u2026";
+
+        try
+        {
+            var path = await _vault.BackupNowAsync();
+            BackupMessage = $"Backup written to {path}";
+            ShowStatus("Vault backed up and verified.");
+            RefreshBackupState();
+        }
+        catch (Exception ex)
+        {
+            BackupMessage = string.Empty;
+            BackupError = "Backup failed: " + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenVaultFolderAsync()
+    {
+        if (OpenFolder is null)
+            return;
+
+        await OpenFolder(VaultPath);
+    }
+
+    private void RefreshBackupState()
+    {
+        try
+        {
+            if (!Directory.Exists(BackupFolder))
+            {
+                LastBackupLabel = "No backup yet";
+                return;
+            }
+
+            var latest = new DirectoryInfo(BackupFolder)
+                .GetFiles("kampf-*.db")
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .FirstOrDefault();
+
+            LastBackupLabel = latest is null
+                ? "No backup yet"
+                : $"Last backup {latest.LastWriteTime:MMM d, HH:mm} \u00b7 {latest.Length / 1024.0 / 1024.0:0.0} MB";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LastBackupLabel = "Backup folder unavailable";
+        }
+    }
+
+    [RelayCommand]
+    private void ShowDataSharing()
+    {
+        View = VaultView.DataSharing;
+        RefreshBackupState();
+    }
 
     [RelayCommand]
     private void ShowExtensions() => View = VaultView.Extensions;
@@ -2560,10 +2964,20 @@ public partial class MainViewModel : ViewModelBase
         if (IsChatting)
             return;
 
+        var confirmed = await AskAsync(new ConfirmRequest(
+            "Clear the Idea-Craft transcript?",
+            "The conversation is forgotten. Your notes, papers, links and graph stay as they are.",
+            "Clear transcript",
+            IsDanger: true,
+            Details: new[] { "Every question and answer in the transcript is deleted.", "This cannot be undone." }));
+
+        if (!confirmed)
+            return;
+
         await _chatService.ClearHistoryAsync();
         ChatExchanges.Clear();
         HasChatHistory = false;
-        StatusMessage = "Idea-Craft history cleared. The vault is untouched.";
+        ShowStatus("Idea-Craft history cleared. The vault is untouched.");
     }
 
     /// <summary>A citation opens the note it points at, so the claim can be checked.</summary>
@@ -3046,6 +3460,14 @@ public partial class MainViewModel : ViewModelBase
         _readerDocumentId = document.Id;
         ReaderSearchQuery = string.Empty;
         ReaderBrief = string.Empty;
+
+        // First open shows the details; afterwards the reader's choice sticks.
+        if (!_seenDocuments.Contains(document.Id))
+        {
+            ReaderInfoExpanded = false;
+            _seenDocuments.Add(document.Id);
+            SaveSeenDocuments();
+        }
 
         SelectedDocument = Documents.FirstOrDefault(d => d.Document.Id == document.Id) ?? SelectedDocument;
         View = VaultView.Reader;
@@ -3542,6 +3964,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void LoadEditor(Note note)
     {
+        CancelAutosave();
         _suppressEditor = true;
         _editingNoteId = note.Id;
         EditorTitle = note.Title;
@@ -3549,6 +3972,7 @@ public partial class MainViewModel : ViewModelBase
         EditorTags = string.Join(", ", note.Tags.Select(t => t.Name));
         _suppressEditor = false;
         IsDirty = false;
+        EditorStats = DescribeStats(note.Body);
         OnPropertyChanged(nameof(HasActiveNote));
         EditorReloaded?.Invoke(this, EventArgs.Empty);
 

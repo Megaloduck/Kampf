@@ -27,6 +27,9 @@ public static class Symbols
     public const string Send = "\uE163";
     public const string Undo = "\uE166";
     public const string Redo = "\uE15A";
+    public const string Fullscreen = "\uE5D0";
+    public const string FullscreenExit = "\uE5D1";
+    public const string Backup = "\uE864";
     public const string Notes = "\uE26C";
     public const string Visibility = "\uE8F4";
     public const string VisibilityOff = "\uE8F5";

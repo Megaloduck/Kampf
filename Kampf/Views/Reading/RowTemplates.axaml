@@ -14,25 +14,25 @@
                 <TextBlock Grid.Column="1"
                            Text="{Binding UpdatedLabel}"
                            Classes="meta"
-                           FontSize="10.5"
+                           FontSize="12"
                            VerticalAlignment="Center"
                            Margin="8,0,0,0"/>
             </Grid>
             <TextBlock Text="{Binding Preview}"
                        Classes="muted"
-                       FontSize="11.5"
+                       FontSize="12"
                        TextWrapping="Wrap"
                        MaxLines="2"
                        TextTrimming="CharacterEllipsis"/>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="{Binding TagLine}"
                            Foreground="{DynamicResource AccentBrush}"
-                           FontSize="10.5"
+                           FontSize="12"
                            IsVisible="{Binding HasTags}"
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock Text="{Binding ProvenanceLabel, StringFormat='↷ {0}'}"
                            Foreground="{DynamicResource SuccessBrush}"
-                           FontSize="10.5"
+                           FontSize="12"
                            IsVisible="{Binding HasProvenance}"/>
             </StackPanel>
         </StackPanel>
@@ -46,11 +46,11 @@
                        TextTrimming="CharacterEllipsis"/>
             <TextBlock Text="{Binding CitationLine}"
                        Classes="muted"
-                       FontSize="11"
+                       FontSize="12"
                        TextTrimming="CharacterEllipsis"/>
             <TextBlock Text="{Binding MetaLine}"
                        Foreground="{DynamicResource FaintBrush}"
-                       FontSize="10.5"/>
+                       FontSize="12"/>
         </StackPanel>
     </DataTemplate>
 </ResourceDictionary>

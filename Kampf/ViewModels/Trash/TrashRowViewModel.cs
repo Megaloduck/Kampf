@@ -7,8 +7,8 @@ namespace Kampf.ViewModels;
 
 /// <summary>
 /// One deleted note or paper waiting in the trash bin. Nothing here is visible to
-/// the rest of the vault until it is restored, and a second press deletes it for
-/// good.
+/// the rest of the vault until it is restored. Deleting for good is confirmed by
+/// the shared dialog, then held for the undo window by the main view-model.
 /// </summary>
 public sealed partial class TrashRowViewModel : ObservableObject
 {

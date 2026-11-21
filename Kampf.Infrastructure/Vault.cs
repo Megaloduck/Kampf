@@ -144,6 +144,58 @@ public sealed class Vault
         return vault;
     }
 
+    // ------------------------------------------------------------- backup
+
+    /// <summary>
+    /// Writes a consistent, verified copy of the database into <c>backups/</c>.
+    /// SQLite's backup API copies through the pager, so a WAL checkpoint is part
+    /// of the copy and the result opens on its own; an encrypted vault produces
+    /// an encrypted backup under the same key.
+    /// </summary>
+    public async Task<string> BackupNowAsync(CancellationToken ct = default)
+    {
+        var directory = Path.Combine(RootPath, "backups");
+        Directory.CreateDirectory(directory);
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var destinationPath = Path.Combine(directory, $"kampf-{stamp}.db");
+        var suffix = 1;
+        while (File.Exists(destinationPath))
+            destinationPath = Path.Combine(directory, $"kampf-{stamp}-{suffix++}.db");
+
+        await using var source = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = DatabasePath, Pooling = false }.ToString());
+        await source.OpenAsync(ct);
+
+        if (_keyHex is not null)
+            await ExecuteAsync(source, $"PRAGMA key = \"x'{_keyHex}'\";", ct);
+
+        await using var destination = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = destinationPath, Pooling = false }.ToString());
+        await destination.OpenAsync(ct);
+
+        if (_keyHex is not null)
+            await ExecuteAsync(destination, $"PRAGMA key = \"x'{_keyHex}'\";", ct);
+
+        await Task.Run(() => source.BackupDatabase(destination), ct);
+
+        var check = destination.CreateCommand();
+        check.CommandText = "PRAGMA integrity_check;";
+        var result = (string?)await check.ExecuteScalarAsync(ct);
+
+        if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The backup did not pass its integrity check.");
+
+        return destinationPath;
+    }
+
+    private static async Task ExecuteAsync(SqliteConnection connection, string sql, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
     // ---------------------------------------------------------- encryption
 
     /// <summary>

@@ -10,7 +10,7 @@
              IsVisible="{Binding IsEditorView}">
 
     <!-- Note workspace: title, tags and one body panel shared by editor and preview. -->
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ============ HEADER ============ -->
         <Border Grid.Row="0"
@@ -82,19 +82,26 @@
                 <!-- Confirmation hint: pull it out of the button row so it doesn't shift layout. -->
                 <TextBlock Text="Click Delete again to move it to the trash"
                            Classes="meta"
-                           FontSize="10.5"
+                           FontSize="12"
                            Foreground="{DynamicResource WarnBrush}"
                            IsVisible="{Binding ConfirmDelete}"/>
 
                 <!-- Provenance row: citation on the left, editor bookkeeping on the right.
                      "Open source" now lives in the header action group above. -->
-                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
                     <TextBlock Text="{Binding ProvenanceText}"
                                Classes="meta"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"
                                ToolTip.Tip="{Binding ProvenanceText}"/>
                     <TextBlock Grid.Column="1"
+                               Text="{Binding EditorStats}"
+                               Classes="meta"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               Margin="14,0,0,0"
+                               IsVisible="{Binding HasActiveNote}"/>
+                    <TextBlock Grid.Column="2"
                                Text="{Binding EditorMeta}"
                                Classes="meta"
                                VerticalAlignment="Center"
@@ -113,7 +120,7 @@
                 <TextBox Grid.Column="1"
                          Text="{Binding EditorTags, Mode=TwoWay}"
                          Watermark="methods, graph-theory (comma separated)"
-                         FontSize="11.5"
+                         FontSize="12"
                          Margin="10,0,0,0"
                          CornerRadius="6"/>
                 <TextBlock Grid.Column="2"
@@ -192,16 +199,5 @@
             </StackPanel>
         </Border>
 
-        <!-- ============ STATUS BAR ============ -->
-        <Border Grid.Row="3"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="24,8">
-            <TextBlock Text="{Binding StatusMessage}"
-                       FontSize="11.5"
-                       Foreground="{DynamicResource MutedBrush}"
-                       TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"/>
-        </Border>
     </Grid>
 </UserControl>

@@ -48,7 +48,7 @@
                                         AttachedToVisualTree="OnNewFolderFlyoutOpened">
                                 <TextBlock Text="NEW FOLDER"
                                            Classes="section"
-                                           FontSize="9"/>
+                                           FontSize="11"/>
                                 <TextBox Text="{Binding NewFolderName, Mode=TwoWay}"
                                          Watermark="Folder name"
                                          AutomationProperties.Name="Folder name"
@@ -80,12 +80,12 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="{Binding ListHeader}"
                                Classes="section"
-                               FontSize="9"
+                               FontSize="11"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
                     <Button Grid.Column="1"
                             Classes="link"
-                            FontSize="10"
+                            FontSize="12"
                             Command="{Binding ClearSearchCommand}"
                             ToolTip.Tip="Show every note again">
                         <TextBlock Text="Clear"/>

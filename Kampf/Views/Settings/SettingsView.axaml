@@ -26,7 +26,7 @@
                     </StackPanel>
                     <TextBlock Text="Appearance, vault encryption and where the vault lives."
                                Classes="meta"
-                               FontSize="10.5"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                 </StackPanel>
                 <Button Grid.Column="1"
@@ -35,7 +35,7 @@
                         Command="{Binding CloseSettingsCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Classes="icon" FontSize="15" Text="{x:Static controls:Symbols.Close}"/>
-                        <TextBlock Text="Close" FontSize="11.5"/>
+                        <TextBlock Text="Close" FontSize="12"/>
                     </StackPanel>
                 </Button>
             </Grid>
@@ -55,7 +55,7 @@
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Theme" FontSize="12.5"/>
-                                <TextBlock Text="{Binding ThemeButtonLabel}" Classes="meta" FontSize="11"/>
+                                <TextBlock Text="{Binding ThemeButtonLabel}" Classes="meta" FontSize="12"/>
                             </StackPanel>
                             <Button Grid.Column="1"
                                     Command="{Binding ToggleThemeCommand}"
@@ -94,7 +94,7 @@
                             <Button Grid.Column="1"
                                     Classes="ghost"
                                     Padding="10,3"
-                                    FontSize="11"
+                                    FontSize="12"
                                     Command="{Binding ResetShortcutsCommand}"
                                     ToolTip.Tip="Put every shortcut back to its default">
                                 <TextBlock Text="Reset all"/>
@@ -103,7 +103,7 @@
 
                         <TextBlock Text="Press Change, then the chord you want. A shortcut needs Ctrl or Alt, or an F-key on its own; Escape cancels and keeps the old chord."
                                    Classes="meta"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    TextWrapping="Wrap"
                                    LineHeight="16"/>
 
@@ -115,7 +115,7 @@
                                             <TextBlock Text="{Binding Title}" FontSize="12"/>
                                             <TextBlock Text="{Binding Detail}"
                                                        Classes="meta"
-                                                       FontSize="10"
+                                                       FontSize="12"
                                                        TextWrapping="Wrap"/>
                                         </StackPanel>
 
@@ -130,7 +130,7 @@
                                                 VerticalAlignment="Center">
                                             <TextBlock Text="{Binding CaptureLabel}"
                                                        FontFamily="Consolas, Menlo, monospace"
-                                                       FontSize="11"
+                                                       FontSize="12"
                                                        HorizontalAlignment="Center"/>
                                         </Border>
 
@@ -140,7 +140,7 @@
                                                     VerticalAlignment="Center">
                                             <Button Classes="ghost"
                                                     Padding="10,3"
-                                                    FontSize="11"
+                                                    FontSize="12"
                                                     IsVisible="{Binding !IsCapturing}"
                                                     Command="{Binding BeginCaptureCommand}"
                                                     ToolTip.Tip="Press the new chord">
@@ -148,7 +148,7 @@
                                             </Button>
                                             <Button Classes="ghost"
                                                     Padding="10,3"
-                                                    FontSize="11"
+                                                    FontSize="12"
                                                     IsVisible="{Binding IsCapturing}"
                                                     Command="{Binding CancelCaptureCommand}"
                                                     ToolTip.Tip="Keep the current shortcut">
@@ -163,7 +163,7 @@
                         <TextBlock Text="{Binding ShortcutMessage}"
                                    IsVisible="{Binding HasShortcutMessage}"
                                    Classes="meta"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
@@ -187,20 +187,20 @@
                             <TextBlock Text="{Binding EncryptionStatus}" FontSize="12.5"/>
                             <TextBlock Text="{Binding EncryptionHint}"
                                        Classes="meta"
-                                       FontSize="11"
+                                       FontSize="12"
                                        TextWrapping="Wrap"
                                        LineHeight="17"/>
                         </StackPanel>
 
                         <StackPanel Spacing="6">
-                            <TextBlock Text="PLAINTEXT MARKDOWN MIRRORS" Classes="section" FontSize="9.5"/>
+                            <TextBlock Text="PLAINTEXT MARKDOWN MIRRORS" Classes="section" FontSize="12"/>
                             <CheckBox IsChecked="{Binding WriteMarkdownMirrors, Mode=TwoWay}"
                                       IsEnabled="{Binding MirrorToggleEnabled}"
                                       Content="Also write notes to notes/*.md"
                                       FontSize="12"/>
                             <TextBlock Text="{Binding MirrorStatus}"
                                        Classes="meta"
-                                       FontSize="10.5"
+                                       FontSize="12"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
@@ -264,21 +264,21 @@
                                 <TextBlock Text="{Binding SettingsMessage}"
                                            IsVisible="{Binding HasSettingsMessage}"
                                            Foreground="{DynamicResource SuccessBrush}"
-                                           FontSize="10.5"
+                                           FontSize="12"
                                            TextWrapping="Wrap"/>
                                 <TextBlock Text="{Binding SettingsError}"
                                            IsVisible="{Binding HasSettingsError}"
                                            Foreground="{DynamicResource DangerBrush}"
-                                           FontSize="10.5"
+                                           FontSize="12"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 
                         <StackPanel Spacing="2">
-                            <TextBlock Text="VAULT FOLDER" Classes="section" FontSize="9.5"/>
-                            <TextBlock Text="{Binding VaultFolder}" Classes="muted" FontSize="11" TextWrapping="Wrap"/>
-                            <TextBlock Text="DATABASE" Classes="section" FontSize="9.5" Margin="0,6,0,0"/>
-                            <TextBlock Text="{Binding DatabaseFile}" Classes="muted" FontSize="11" TextWrapping="Wrap"/>
+                            <TextBlock Text="VAULT FOLDER" Classes="section" FontSize="12"/>
+                            <TextBlock Text="{Binding VaultFolder}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+                            <TextBlock Text="DATABASE" Classes="section" FontSize="12" Margin="0,6,0,0"/>
+                            <TextBlock Text="{Binding DatabaseFile}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -293,12 +293,12 @@
                         <TextBlock Text="PRIVACY" Classes="section"/>
                         <TextBlock Text="The vault is local-first. Nothing is uploaded, no accounts are created, and no telemetry is sent."
                                    Classes="meta"
-                                   FontSize="11"
+                                   FontSize="12"
                                    TextWrapping="Wrap"
                                    LineHeight="17"/>
                         <TextBlock Text="Encryption covers the database: notes, tags, links, highlights, embeddings and chat history. It does not cover the PDFs stored in assets/ — those remain readable files, and backups of the database stay in the form they were taken (a backup of an encrypted vault is itself encrypted)."
                                    Classes="meta"
-                                   FontSize="10.5"
+                                   FontSize="12"
                                    TextWrapping="Wrap"
                                    LineHeight="16"/>
                     </StackPanel>

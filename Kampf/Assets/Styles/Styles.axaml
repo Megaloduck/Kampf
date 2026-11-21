@@ -21,7 +21,7 @@
 
     <Style Selector="TextBlock.section">
         <Setter Property="Foreground" Value="{DynamicResource FaintBrush}"/>
-        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="LetterSpacing" Value="1.2"/>
     </Style>
@@ -32,7 +32,27 @@
 
     <Style Selector="TextBlock.meta">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
-        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="LineHeight" Value="17"/>
+    </Style>
+
+    <Style Selector="TextBlock.caption">
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LetterSpacing" Value="1.1"/>
+    </Style>
+
+    <Style Selector="TextBlock.body">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="LineHeight" Value="20"/>
+    </Style>
+
+    <Style Selector="TextBlock.subtitle">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <!-- Material Symbols Rounded icon glyph; the font ships in Assets/Fonts. -->
@@ -355,6 +375,16 @@
 
     <!-- Keyboard focus ring and a pressed state for the rail: the rail is
          icon-only, so focus has to be visible for keyboard users. -->
+    <Style Selector="Button.ghost:focus /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.primary:focus /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource OnAccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
     <Style Selector="Button.rail:focus /template/ ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>

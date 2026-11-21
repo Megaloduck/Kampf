@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Kampf.Views.ConfirmDialog"
+        Title="Kampf"
+        Width="470"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BgBrush}">
+
+    <Border Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            Padding="24,20">
+        <StackPanel Spacing="12">
+            <TextBlock x:Name="TitleText"
+                       FontSize="17"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock x:Name="BodyText"
+                       Classes="muted"
+                       FontSize="12.5"
+                       LineHeight="19"
+                       TextWrapping="Wrap"/>
+
+            <Border x:Name="DetailPanel"
+                    IsVisible="False"
+                    Background="{DynamicResource PanelAltBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="7"
+                    Padding="12,10">
+                <TextBlock x:Name="DetailText"
+                           FontSize="12"
+                           LineHeight="18"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="8"
+                        Margin="0,4,0,0">
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Click="OnCancelClick"
+                        IsCancel="True"/>
+                <Button x:Name="ConfirmButton"
+                        Click="OnConfirmClick"
+                        IsDefault="False"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

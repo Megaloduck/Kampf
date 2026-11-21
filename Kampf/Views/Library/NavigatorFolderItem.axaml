@@ -48,7 +48,7 @@
                 <TextBlock Grid.Column="3"
                            Text="{Binding CountLabel}"
                            Classes="meta"
-                           FontSize="10.5"
+                           FontSize="12"
                            Margin="6,0,2,0"
                            VerticalAlignment="Center"/>
             </Grid>

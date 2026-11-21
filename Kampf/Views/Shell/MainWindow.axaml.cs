@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -11,6 +12,7 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Kampf.Controls;
+using Kampf.Services;
 using Kampf.ViewModels;
 
 namespace Kampf.Views;
@@ -18,6 +20,8 @@ namespace Kampf.Views;
 public partial class MainWindow : Window
 {
     private MainViewModel? _viewModel;
+    private bool _closing;
+    private bool _closeCommitted;
 
     public MainWindow()
     {
@@ -38,19 +42,17 @@ public partial class MainWindow : Window
         // swallow them: Ctrl+S must save the note, not reach the editor as text.
         AddHandler(KeyDownEvent, OnShortcutKeyDown, RoutingStrategies.Tunnel);
 
-        // The reader's place in the open paper and the shape of the window are
-        // saved on the way out, so the next launch resumes both.
-        Closing += (_, _) =>
-        {
-            _ = _viewModel?.SaveReadingStateAsync();
-            SaveWindowSettings();
-        };
+        // Closing is asynchronous now: the editor is saved first, and a failed
+        // save keeps the window open instead of dropping the note body.
+        Closing += OnWindowClosing;
     }
 
     public void SetViewModel(MainViewModel viewModel)
     {
         viewModel.PickPdfFiles = PickPdfFilesAsync;
         viewModel.PickPublishFolder = PickPublishFolderAsync;
+        viewModel.Confirm = ConfirmAsync;
+        viewModel.OpenFolder = OpenFolderAsync;
         _viewModel = viewModel;
         RootView.DataContext = viewModel;
         ApplyWindowSettings(viewModel.VaultPath);
@@ -121,6 +123,9 @@ public partial class MainWindow : Window
             case ShortcutAction.ToggleTheme:
                 viewModel.ToggleThemeCommand.Execute(null);
                 return true;
+            case ShortcutAction.ToggleFocus:
+                RootView.ToggleFocusMode();
+                return true;
             case ShortcutAction.Dismiss:
                 return Dismiss();
             default:
@@ -159,6 +164,68 @@ public partial class MainWindow : Window
         }
 
         return false;
+    }
+
+    // ------------------------------------------------------------- closing
+
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_closeCommitted || _viewModel is null)
+            return;
+
+        // Hold the window open while the note is being written. A save that
+        // fails must leave the text on screen, not on the cutting-room floor.
+        e.Cancel = true;
+
+        if (_closing)
+            return;
+
+        _closing = true;
+
+        try
+        {
+            _viewModel.CancelPendingPermanentDelete();
+            _viewModel.StatusMessage = "Saving before closing\u2026";
+
+            if (!await _viewModel.SaveForCloseAsync())
+            {
+                _viewModel.ReportError(
+                    "Could not save your note, so the window stayed open. Fix the vault folder and close again.");
+                return;
+            }
+
+            await _viewModel.SaveReadingStateAsync();
+            SaveWindowSettings();
+
+            _closeCommitted = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            _viewModel.ReportError("Could not finish closing: " + ex.Message);
+        }
+        finally
+        {
+            _closing = false;
+        }
+    }
+
+    // ------------------------------------------------------------- dialogs
+
+    private async Task<bool> ConfirmAsync(ConfirmRequest request)
+    {
+        var dialog = new ConfirmDialog(request);
+        return await dialog.ShowDialog<bool>(this);
+    }
+
+    private async Task OpenFolderAsync(string path)
+    {
+        if (!Directory.Exists(path))
+            return;
+
+        var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        if (launcher is not null)
+            await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(path));
     }
 
     // -------------------------------------------------------- window geometry
